@@ -25,7 +25,12 @@ struct HomeView: View {
                 permissionsSection
                 externalStorageSection
                 videoScanSection
-                migrationSection
+
+                if !viewModel.videos.isEmpty {
+                    selectionSection
+                    migrationSection
+                    videoListSection
+                }
             }
             .navigationTitle("ClipDock")
             .sheet(isPresented: $isShowingFolderPicker) {
@@ -116,63 +121,72 @@ struct HomeView: View {
             .disabled(viewModel.isScanningVideos || !viewModel.permissionState.canReadLibrary)
 
             LabeledContent("Video Count", value: "\(viewModel.videos.count)")
+        }
+    }
 
-            if !viewModel.videos.isEmpty {
-                HStack {
-                    Text("Selected")
+    private var selectionSection: some View {
+        Section("Select Videos") {
+            HStack {
+                Text("Selected")
+                Spacer()
+                Text("\(viewModel.selectedVideoIDs.count)")
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Tip: tap a row to toggle selection.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Button("Select All") {
+                    viewModel.selectAllScannedVideos()
+                }
+                .buttonStyle(.bordered)
+
+                Button("Clear") {
+                    viewModel.clearSelection()
+                }
+                .buttonStyle(.bordered)
+                .tint(.secondary)
+                .disabled(viewModel.selectedVideoIDs.isEmpty)
+            }
+        }
+    }
+
+    private var videoListSection: some View {
+        Section("Video List") {
+            // Render a capped list for now to avoid heavy UI work on very large libraries.
+            // We'll add paging/filtering next.
+            let cap = min(viewModel.videos.count, 200)
+            ForEach(viewModel.videos.prefix(cap)) { video in
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(video.creationDate, format: Date.FormatStyle(date: .numeric, time: .shortened))
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                        Text("Duration: \(durationFormatter.string(from: video.duration) ?? "--")  Resolution: \(video.resolutionText)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     Spacer()
-                    Text("\(viewModel.selectedVideoIDs.count)")
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 12) {
-                    Button("Select All") {
-                        viewModel.selectAllScannedVideos()
+                    if viewModel.selectedVideoIDs.contains(video.id) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.tint)
+                    } else {
+                        Image(systemName: "circle")
+                            .foregroundStyle(.tertiary)
                     }
-                    .buttonStyle(.bordered)
-
-                    Button("Clear") {
-                        viewModel.clearSelection()
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.secondary)
-                    .disabled(viewModel.selectedVideoIDs.isEmpty)
                 }
-
-                // Render a capped list for now to avoid heavy UI work on very large libraries.
-                // We'll add paging/filtering next.
-                let cap = min(viewModel.videos.count, 200)
-                ForEach(viewModel.videos.prefix(cap)) { video in
-                    Button {
-                        viewModel.toggleSelection(for: video.id)
-                    } label: {
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(video.creationDate, format: Date.FormatStyle(date: .numeric, time: .shortened))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.primary)
-                                Text("Duration: \(durationFormatter.string(from: video.duration) ?? "--")  Resolution: \(video.resolutionText)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if viewModel.selectedVideoIDs.contains(video.id) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.tint)
-                            } else {
-                                Image(systemName: "circle")
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    viewModel.toggleSelection(for: video.id)
                 }
+            }
 
-                if viewModel.videos.count > cap {
-                    Text("Showing first \(cap) items. (Paging/filter will be added next.)")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+            if viewModel.videos.count > cap {
+                Text("Showing first \(cap) items. (Paging/filter will be added next.)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
