@@ -282,3 +282,16 @@
    - 本地回归（Simulator）：`xcodegen generate` + `xcodebuild -project ClipDock.xcodeproj -scheme ClipDock -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.6' CODE_SIGNING_ALLOWED=NO test`
 5. 结果：
    - 回归通过：共 12 个测试用例，0 failure（2026-02-12 21:48 +08:00）。
+
+#### 2026-02-12 - git push GitHub 失败：需要显式配置 git 走本机代理端口
+1. 现象：
+   - 命令行执行 `git push origin main` 长时间超时，报错类似：`Failed to connect to github.com port 443 ... Couldn't connect to server`。
+2. 根因：
+   - 当前网络环境下直连 GitHub 会超时，但系统已配置本机代理（`127.0.0.1:7897`）。`git`（libcurl）默认不会自动读取 macOS 的系统代理配置，因此需要显式设置 `http(s).proxy` 才能走代理。
+3. 解决方案：
+   - 在仓库本地配置（仅影响本 repo，不污染全局）：
+     - `git config http.proxy http://127.0.0.1:7897`
+     - `git config https.proxy http://127.0.0.1:7897`
+4. 验证方法：
+   - `git ls-remote origin` 能正常返回 refs。
+   - `git push origin main` 成功完成推送。
