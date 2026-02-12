@@ -110,3 +110,25 @@ MVP 冲刺周期：3 天（连续开发 + 每模块闭环验证）。
 1. 可运行 MVP 工程（主链路可演示）。
 2. 模块级验证记录（按 M0-M9）。
 3. 已知问题清单与下一轮迭代计划。
+
+## 7. 阶段性进展记录（Progress Log）
+
+### 2026-02-12（Day 1）
+
+完成情况：
+1. `M0 工程骨架与基础配置`：完成
+2. `M1 权限模块（PhotoKit）`：完成（真机点击 `Grant Access` 可正常弹出权限框）
+3. `M2 外接目录选择与 bookmark`：完成（目录选择、写入探针校验）
+4. `M3 视频扫描与日期排序`：完成（列表展示按日期倒序）
+
+遇到的问题与解决（摘要）：
+1. iOS 编译失败：`withSecurityScope` 相关 bookmark 选项在 iOS 不可用，已改为 iOS 使用 `.minimalBookmark`。
+2. 真机点击 `Grant Access` 闪退：打包 `Info.plist` 缺少 Photos 权限用途说明 key，已补齐 `NSPhotoLibraryUsageDescription` / `NSPhotoLibraryAddUsageDescription`。
+
+证据（截图）：
+1. 待补：ClipDock 首页截图（权限状态、外接目录、视频扫描结果）。
+   - 计划路径：`docs/assets/clipdock-progress-2026-02-12.png`
+
+下一步（Day 1 余量 / Day 2）：
+1. `M4 手动选择模块`：多选/全选/统计
+2. `M5 迁移执行器（复制到外接盘）`：逐条迁移、进度、错误回传
