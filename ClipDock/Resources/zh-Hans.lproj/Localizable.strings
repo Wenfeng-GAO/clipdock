@@ -35,6 +35,7 @@
 "Select Videos" = "选择视频";
 "Selected" = "已选择";
 "Tip: tap a row to toggle selection." = "提示：点击列表项可切换选择。";
+"Show Selected Only" = "仅显示已选择";
 "Select All" = "全选";
 "Clear" = "清空";
 
@@ -43,6 +44,8 @@
 "Resolution" = "分辨率";
 "Size" = "大小";
 "Showing first %d items. (Paging/filter will be added next.)" = "仅显示前 %d 条。（后续会加入分页/筛选）";
+"Load More" = "加载更多";
+"Showing %d items." = "当前显示 %d 条。";
 
 "Migration (Copy to External Folder)" = "迁移（复制到外接目录）";
 "Selected Videos" = "已选择视频";
@@ -54,6 +57,12 @@
 "Post-Migration" = "迁移后操作";
 "Succeeded" = "成功";
 "Failed" = "失败";
+"Failures" = "失败列表";
+"Copy Error" = "复制错误信息";
+"Copied." = "已复制。";
+"Showing first %d failures. See History for full details." = "仅显示前 %d 条失败记录，完整信息请到“历史”查看。";
+"Only succeeded items can be deleted." = "仅成功项可删除。";
+"View Last Run Details" = "查看最近一次详情";
 "Deletion is only available for succeeded items. We'll add per-item failure details next." = "删除仅对成功项可用。（后续会补充逐条失败详情）";
 "Run a migration to see results here." = "运行一次迁移后在这里查看结果。";
 "Deleting..." = "删除中...";
@@ -100,4 +109,3 @@
 "Migration completed with failures: %d success, %d failed." = "迁移完成：成功 %d 个，失败 %d 个。";
 "Full Photos access is required to delete videos." = "删除视频需要“完全访问”相册权限。";
 "Deleted %d original video(s)." = "已删除 %d 个原视频。";
-

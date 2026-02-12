@@ -31,7 +31,7 @@ struct HistoryView: View {
     }
 }
 
-private struct HistoryDetailView: View {
+struct HistoryDetailView: View {
     let record: MigrationHistoryRecord
 
     var body: some View {

@@ -35,6 +35,7 @@
 "Select Videos" = "Select Videos";
 "Selected" = "Selected";
 "Tip: tap a row to toggle selection." = "Tip: tap a row to toggle selection.";
+"Show Selected Only" = "Show Selected Only";
 "Select All" = "Select All";
 "Clear" = "Clear";
 
@@ -43,6 +44,8 @@
 "Resolution" = "Resolution";
 "Size" = "Size";
 "Showing first %d items. (Paging/filter will be added next.)" = "Showing first %d items. (Paging/filter will be added next.)";
+"Load More" = "Load More";
+"Showing %d items." = "Showing %d items.";
 
 "Migration (Copy to External Folder)" = "Migration (Copy to External Folder)";
 "Selected Videos" = "Selected Videos";
@@ -54,6 +57,12 @@
 "Post-Migration" = "Post-Migration";
 "Succeeded" = "Succeeded";
 "Failed" = "Failed";
+"Failures" = "Failures";
+"Copy Error" = "Copy Error";
+"Copied." = "Copied.";
+"Showing first %d failures. See History for full details." = "Showing first %d failures. See History for full details.";
+"Only succeeded items can be deleted." = "Only succeeded items can be deleted.";
+"View Last Run Details" = "View Last Run Details";
 "Deletion is only available for succeeded items. We'll add per-item failure details next." = "Deletion is only available for succeeded items. We'll add per-item failure details next.";
 "Run a migration to see results here." = "Run a migration to see results here.";
 "Deleting..." = "Deleting...";
@@ -100,4 +109,3 @@
 "Migration completed with failures: %d success, %d failed." = "Migration completed with failures: %d success, %d failed.";
 "Full Photos access is required to delete videos." = "Full Photos access is required to delete videos.";
 "Deleted %d original video(s)." = "Deleted %d original video(s).";
-

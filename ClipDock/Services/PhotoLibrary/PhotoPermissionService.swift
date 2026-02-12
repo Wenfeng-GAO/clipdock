@@ -11,6 +11,11 @@ enum PhotoPermissionState: String {
         self == .authorized || self == .limited
     }
 
+    var canDeleteFromLibrary: Bool {
+        // Keep deletion gated on full access for safety.
+        self == .authorized
+    }
+
     var displayText: String {
         switch self {
         case .notDetermined:

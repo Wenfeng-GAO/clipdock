@@ -30,12 +30,22 @@ final class HomeViewModel: ObservableObject {
         didSet {
             applySort()
             if sortMode != .dateDesc {
-                prefetchSizesForFirstPageIfNeeded()
+                prefetchSizesForVisibleRangeIfNeeded()
             }
         }
     }
     @Published private(set) var videoSizeBytesByID: [String: Int64] = [:]
     @Published private(set) var isFetchingVideoSizes = false
+
+    // List rendering controls (M10)
+    @Published var listVisibleLimit: Int = 200
+    @Published var showSelectedOnly: Bool = false {
+        didSet {
+            if sortMode != .dateDesc {
+                prefetchSizesForVisibleRangeIfNeeded()
+            }
+        }
+    }
 
     // M4: manual selection
     @Published var selectedVideoIDs: Set<String> = []
@@ -126,6 +136,8 @@ final class HomeViewModel: ObservableObject {
         }
 
         isScanningVideos = true
+        listVisibleLimit = 200
+        showSelectedOnly = false
         selectedVideoIDs.removeAll()
         lastMigrationResult = nil
         videoSizeBytesByID = [:]
@@ -137,7 +149,7 @@ final class HomeViewModel: ObservableObject {
             isScanningVideos = false
 
             // Preload sizes for the first page so the list can display sizes immediately.
-            prefetchSizesForFirstPageIfNeeded()
+            prefetchSizesForVisibleRangeIfNeeded()
         }
     }
 
@@ -189,12 +201,11 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    private func prefetchSizesForFirstPageIfNeeded() {
+    private func prefetchSizesForVisibleRangeIfNeeded() {
         guard permissionState.canReadLibrary else { return }
-        let cap = min(videos.count, 200)
-        guard cap > 0 else { return }
+        let ids = Array(displayedVideos.map(\.id))
+        guard !ids.isEmpty else { return }
 
-        let ids = Array(videos.prefix(cap).map(\.id))
         let missing = ids.filter { videoSizeBytesByID[$0] == nil && !inFlightSizeAssetIDs.contains($0) }
         guard !missing.isEmpty else { return }
 
@@ -236,6 +247,27 @@ final class HomeViewModel: ObservableObject {
                 if sa == nil && sb != nil { return false }
                 return a.creationDate > b.creationDate
             }
+        }
+    }
+
+    // MARK: - List display (M10)
+
+    var displayedVideos: [VideoAssetSummary] {
+        let base = showSelectedOnly ? videos.filter { selectedVideoIDs.contains($0.id) } : videos
+        let cap = min(base.count, listVisibleLimit)
+        return Array(base.prefix(cap))
+    }
+
+    var hasMoreVideosToShow: Bool {
+        let total = showSelectedOnly ? videos.filter { selectedVideoIDs.contains($0.id) }.count : videos.count
+        return displayedVideos.count < total
+    }
+
+    func loadMoreVideos() {
+        let total = showSelectedOnly ? videos.filter { selectedVideoIDs.contains($0.id) }.count : videos.count
+        listVisibleLimit = min(listVisibleLimit + 200, total)
+        if sortMode != .dateDesc {
+            prefetchSizesForVisibleRangeIfNeeded()
         }
     }
 
@@ -303,7 +335,7 @@ final class HomeViewModel: ObservableObject {
 
     func deleteMigratedOriginals() {
         guard !isDeleting else { return }
-        guard permissionState.canReadLibrary else {
+        guard permissionState.canDeleteFromLibrary else {
             alertMessage = L10n.tr("Full Photos access is required to delete videos.")
             return
         }

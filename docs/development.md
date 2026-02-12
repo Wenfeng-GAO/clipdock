@@ -295,3 +295,22 @@
 4. 验证方法：
    - `git ls-remote origin` 能正常返回 refs。
    - `git push origin main` 成功完成推送。
+
+#### 2026-02-12 - M10：回归前收尾（分页加载/仅看已选/失败详情/删除权限收紧）
+1. 现象：
+   - 大量视频场景下需要更可控的列表浏览（加载更多、只看已选），并在迁移失败时能在首页直接看到失败原因；同时删除操作应明确要求“完全访问”权限。
+2. 根因：
+   - 列表此前固定只展示前 200 条且没有“仅看已选”；迁移失败原因需要进入 History 才能看到；删除逻辑仅校验 `canReadLibrary`，与“删除需要完全访问”的提示不一致。
+3. 解决方案：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeViewModel.swift`：
+     - 增加 `listVisibleLimit`（默认 200）+ `loadMoreVideos()`；增加 `showSelectedOnly`；size 预取范围调整为“当前可见范围”。
+     - 删除逻辑改为 `permissionState.canDeleteFromLibrary`（仅 `.authorized`）。
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeView.swift`：
+     - 增加 `Show Selected Only` 开关、`Load More` 按钮。
+     - `Post-Migration` 增加失败列表 `DisclosureGroup`（最多 20 条）+ 一键复制错误信息；并提供“最近一次运行详情”直达入口。
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/History/HistoryView.swift`：
+     - 将 `HistoryDetailView` 从 `private` 调整为可复用，供首页跳转复用。
+4. 验证方法：
+   - 编译验证：`xcodegen generate` + `xcodebuild ... build`（iOS）。
+   - 回归验证：`xcodebuild ... test`（Simulator，12 tests / 0 failure）。
+   - 备注：`xcodebuild test` 在本机出现“Result bundle saving failed (mkstemp: No such file or directory)”警告，但测试用例执行结果为 `TEST SUCCEEDED`，不影响回归结论。

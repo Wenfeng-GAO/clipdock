@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
@@ -192,6 +193,8 @@ struct HomeView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
+            Toggle("Show Selected Only", isOn: $viewModel.showSelectedOnly)
+
             HStack(spacing: 12) {
                 Button("Select All") {
                     viewModel.selectAllScannedVideos()
@@ -212,8 +215,8 @@ struct HomeView: View {
         Section("Video List") {
             // Render a capped list for now to avoid heavy UI work on very large libraries.
             // We'll add paging/filtering next.
-            let cap = min(viewModel.videos.count, 200)
-            ForEach(viewModel.videos.prefix(cap)) { video in
+            let displayed = viewModel.displayedVideos
+            ForEach(displayed) { video in
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(video.creationDate, format: Date.FormatStyle(date: .numeric, time: .shortened))
@@ -246,15 +249,20 @@ struct HomeView: View {
                 }
             }
 
-            if viewModel.videos.count > cap {
+            if viewModel.hasMoreVideosToShow {
+                Button("Load More") {
+                    viewModel.loadMoreVideos()
+                }
+                .buttonStyle(.bordered)
+
                 Text(
                     verbatim: L10n.tr(
-                        "Showing first %d items. (Paging/filter will be added next.)",
-                        cap
+                        "Showing %d items.",
+                        displayed.count
                     )
                 )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
         }
     }
@@ -317,9 +325,44 @@ struct HomeView: View {
                 LabeledContent("Failed", value: "\(result.failureCount)")
 
                 if result.failureCount > 0 {
-                    Text("Deletion is only available for succeeded items. We'll add per-item failure details next.")
+                    DisclosureGroup("Failures") {
+                        let maxItems = min(result.failures.count, 20)
+                        ForEach(result.failures.prefix(maxItems), id: \.self) { item in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.assetID)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                Text(item.message)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(6)
+                                Button("Copy Error") {
+                                    UIPasteboard.general.string = "\(item.assetID)\n\(item.message)"
+                                    viewModel.alertMessage = L10n.tr("Copied.")
+                                }
+                                .font(.caption)
+                            }
+                        }
+
+                        if result.failures.count > maxItems {
+                            Text(verbatim: L10n.tr("Showing first %d failures. See History for full details.", maxItems))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Text("Only succeeded items can be deleted.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+
+                if let latest = viewModel.migrationHistory.first {
+                    NavigationLink {
+                        HistoryDetailView(record: latest)
+                    } label: {
+                        Text("View Last Run Details")
+                    }
                 }
             } else {
                 Text("Run a migration to see results here.")
