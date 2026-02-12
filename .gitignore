@@ -4,6 +4,7 @@
 # Xcode
 DerivedData/
 build/
+*.xcodeproj/
 *.xcworkspace/xcuserdata/
 *.xcuserdatad/
 *.xcuserstate
