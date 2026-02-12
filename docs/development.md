@@ -325,6 +325,18 @@
 4. 验证方法：
    - `xcodebuild ... -derivedDataPath /tmp/... test` -> `TEST SUCCEEDED`（12 tests / 0 failure，2026-02-13 00:12 +08:00）。
 
+#### 2026-02-13 - App Store 准备：移除 `fileSize` KVC（避免非公开行为风险）
+1. 现象：
+   - 列表“按大小排序/显示大小”此前通过 `PHAssetResource` 的 KVC 读取 `fileSize`，存在依赖非公开实现细节的风险。
+2. 根因：
+   - `PHAsset` 没有公开的“文件大小”字段；KVC 读取属于实现细节，未来 iOS 版本可能失效，且可能影响上架审核风险。
+3. 解决方案：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Services/PhotoLibrary/VideoLibraryService.swift`：
+     - 改为使用 `PHImageManager.requestAVAsset(forVideo:)`（public API）拿到 `AVURLAsset` 时读取本地文件大小（best-effort）。
+     - `isNetworkAccessAllowed=false`：仅对已在本地的资源返回 size，iCloud-only 资源 size 继续显示 `--`。
+4. 验证方法：
+   - `xcodebuild ... test`（Simulator） -> `TEST SUCCEEDED`（12 tests / 0 failure，2026-02-13 01:06 +08:00）。
+
 ---
 
 ## 最终总结（MVP -> Beta）
