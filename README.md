@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/clipdock-icon-1024.png" width="128" alt="ClipDock app icon" />
+</p>
+
 # ClipDock
 
 ClipDock is an iOS app that helps users move videos from iPhone Photos to external storage, then delete originals to free up device space.
