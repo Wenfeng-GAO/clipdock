@@ -351,3 +351,4 @@
 1. CI：已加入 GitHub Actions（编译/测试）。
 2. 工程生成：不追踪 `ClipDock.xcodeproj/`，用 `xcodegen generate` 生成。
 3. 文档：PRD/Dev Log/Project Plan 已齐备，且记录关键问题与解决方案。
+4. Beta/Preview：已创建 GitHub Release `v0.2.6-beta.1`（tag + release notes）。

@@ -169,7 +169,7 @@ MVP 冲刺周期：3 天（连续开发 + 每模块闭环验证）。
    - ![MVP Final 2026-02-13](images/mvp-final-2026-02-13-000009.png)
 
 下一步：
-1. 发布一个 Beta/Preview Release（tag + GitHub Release）。
+1. 已发布 Beta/Preview Release：`v0.2.6-beta.1`（GitHub Release）。
 2. 整理“从 idea 到 release”的过程，为公众号文章做素材沉淀。
 
 ## 8. 阶段耗时统计（基于历史会话/提交记录）
