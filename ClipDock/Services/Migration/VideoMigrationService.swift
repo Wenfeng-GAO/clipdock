@@ -90,10 +90,44 @@ struct VideoMigrationService: VideoMigrating {
     }
 
     private func export(resource: PHAssetResource, to destinationURL: URL) async throws {
-        // Ensure folder exists.
-        let folderURL = destinationURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        // Export to sandbox first, then copy to the external folder while holding the security scope.
+        // In practice, Photos export can fail with generic errors when writing directly to external storage URLs.
+        let fileManager = FileManager.default
+        let tempURL = fileManager.temporaryDirectory
+            .appendingPathComponent("clipdock_export_\(UUID().uuidString)")
 
+        defer {
+            try? fileManager.removeItem(at: tempURL)
+        }
+
+        let options = PHAssetResourceRequestOptions()
+        options.isNetworkAccessAllowed = true
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            PHAssetResourceManager.default().writeData(for: resource, toFile: tempURL, options: options) { error in
+                if let error {
+                    let nsError = error as NSError
+                    continuation.resume(
+                        throwing: VideoMigrationError.exportFailed("\(nsError.domain) (\(nsError.code)): \(nsError.localizedDescription)")
+                    )
+                    return
+                }
+
+                do {
+                    let attrs = try fileManager.attributesOfItem(atPath: tempURL.path)
+                    let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+                    if size <= 0 {
+                        continuation.resume(throwing: VideoMigrationError.exportFailed("exported temp file is empty"))
+                        return
+                    }
+                    continuation.resume(returning: ())
+                } catch {
+                    continuation.resume(throwing: VideoMigrationError.exportFailed(error.localizedDescription))
+                }
+            }
+        }
+
+        let folderURL = destinationURL.deletingLastPathComponent()
         let started = folderURL.startAccessingSecurityScopedResource()
         defer {
             if started {
@@ -101,30 +135,13 @@ struct VideoMigrationService: VideoMigrating {
             }
         }
 
-        let options = PHAssetResourceRequestOptions()
-        options.isNetworkAccessAllowed = true
+        try fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            PHAssetResourceManager.default().writeData(for: resource, toFile: destinationURL, options: options) { error in
-                if let error {
-                    continuation.resume(throwing: VideoMigrationError.exportFailed(error.localizedDescription))
-                    return
-                }
-
-                // Minimal validation: file exists and is non-empty.
-                do {
-                    let attrs = try FileManager.default.attributesOfItem(atPath: destinationURL.path)
-                    let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
-                    if size <= 0 {
-                        continuation.resume(throwing: VideoMigrationError.exportFailed("exported file is empty"))
-                    } else {
-                        continuation.resume(returning: ())
-                    }
-                } catch {
-                    continuation.resume(throwing: VideoMigrationError.exportFailed(error.localizedDescription))
-                }
-            }
+        // Copy then remove temp to reduce risk of losing data if the copy fails mid-way.
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
         }
+        try fileManager.copyItem(at: tempURL, to: destinationURL)
     }
 
     private func makeOutputFilename(asset: PHAsset, originalFilename: String) -> String {
