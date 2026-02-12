@@ -314,3 +314,40 @@
    - 编译验证：`xcodegen generate` + `xcodebuild ... build`（iOS）。
    - 回归验证：`xcodebuild ... test`（Simulator，12 tests / 0 failure）。
    - 备注：`xcodebuild test` 在本机出现“Result bundle saving failed (mkstemp: No such file or directory)”警告，但测试用例执行结果为 `TEST SUCCEEDED`，不影响回归结论。
+
+#### 2026-02-13 - xcodebuild test 失败：build.db 锁冲突（并发 build/test）
+1. 现象：
+   - 运行 `xcodebuild test` 报错：`database is locked Possibly there are two concurrent builds running in the same filesystem location.`。
+2. 根因：
+   - 同时触发了两条 `xcodebuild`（build + test）并共享同一个 DerivedData，导致 build database 被占用。
+3. 解决方案：
+   - 避免并发跑 build/test；或为 `xcodebuild test` 指定独立 `-derivedDataPath`（例如 `/tmp/ClipDockDerivedDataTest.XXXXXX`）。
+4. 验证方法：
+   - `xcodebuild ... -derivedDataPath /tmp/... test` -> `TEST SUCCEEDED`（12 tests / 0 failure，2026-02-13 00:12 +08:00）。
+
+---
+
+## 最终总结（MVP -> Beta）
+
+### 已交付功能（对齐 PRD / MVP）
+1. 扫描：PhotoKit 拉取视频资产，默认按日期倒序，支持“按大小排序”，并展示大小（未知显示 `--`）。
+2. 选择：列表多选/全选/清空/仅看已选，选中数量联动迁移区块。
+3. 外接目录：Document Picker 选择目录并持久化 bookmark，支持“重新检查目录权限/重新选择目录”。
+4. 迁移：导出到临时目录后用 `NSFileCoordinator` 协调写入外接目录；持有 security-scoped access 覆盖整个迁移任务；进度显示、失败原因可见。
+5. 校验：最小一致性校验（文件存在、非空、可读、时长近似），作为“可删除”前置条件。
+6. 删除：仅删除“最近一次迁移运行中迁移+校验成功”条目；权限收紧为必须完全访问（`.authorized`）。
+7. 历史：持久化迁移运行与条目结果；支持从首页跳转查看最近运行详情。
+8. 国际化：`en` + `zh-Hans`，默认随系统。
+9. 回归：单元测试覆盖主链路 guardrail、排序、选中状态、历史落盘截断等边界（大库/大量选择）。
+
+### 机测结论（你提供）
+1. 真机测试通过：流程稳定、功能正常（MVP 最终截图已归档，见项目进度文档）。
+
+### 已知技术债 / 风险（明确记录）
+1. 视频大小读取当前用 `PHAssetResource` 的 KVC 读取 `fileSize`，不是公开 API 合约，未来 iOS 版本可能失效或不适合上架场景。
+2. 外接盘行为在不同文件提供者/盘体上可能存在差异，当前方案优先确保“可用 + 错误可见 + 可重试”。
+
+### Release 准备清单（完成情况）
+1. CI：已加入 GitHub Actions（编译/测试）。
+2. 工程生成：不追踪 `ClipDock.xcodeproj/`，用 `xcodegen generate` 生成。
+3. 文档：PRD/Dev Log/Project Plan 已齐备，且记录关键问题与解决方案。
