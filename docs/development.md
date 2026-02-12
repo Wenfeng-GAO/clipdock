@@ -255,3 +255,30 @@
 4. 验证方法：
    - 编译验证：`xcodegen generate` + `xcodebuild -project ClipDock.xcodeproj -scheme ClipDock -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`。
    - 真机验证（后续）：iOS 设置中切换语言为中文，确认关键页面与弹窗文案为中文；切换回英文后恢复英文。
+
+#### 2026-02-12 - 单元测试与回归（覆盖大量/大视频等边界）
+1. 现象：
+   - 需要补充单元测试，对 MVP 主链路做回归验证，并覆盖“视频很多/很大”的边界情况。
+2. 根因：
+   - 现阶段业务逻辑主要集中在 `HomeViewModel` 的流程编排与状态机；真实 PhotoKit/外接盘导出不适合在单测环境中跑，需要用 mock 分层验证行为与边界。
+3. 解决方案：
+   - 新增 `ClipDockTests` 单元测试 Target（xcodegen 管理），并启用 `GENERATE_INFOPLIST_FILE=YES` 避免测试 bundle 缺 plist 导致无法运行。
+   - 新增 mock（Test Doubles）覆盖：
+     - 权限/扫描 guardrail（拒绝权限不触发扫描）
+     - 迁移 guardrail（无目录/不可写/无选择不触发迁移）
+     - 大量视频（5k 条）全选不崩溃（逻辑层验证）
+     - 大小预取 cap=200 的策略正确、按大小排序未知项在底部
+     - 迁移调用参数顺序稳定、删除只删 lastRun success
+     - 历史记录落盘 maxRecords 截断逻辑
+   - 关键文件：
+     - `/Users/wenfeng/Documents/iphoneapp/project.yml`
+     - `/Users/wenfeng/Documents/iphoneapp/ClipDockTests/TestDoubles.swift`
+     - `/Users/wenfeng/Documents/iphoneapp/ClipDockTests/HomeViewModelGuardrailTests.swift`
+     - `/Users/wenfeng/Documents/iphoneapp/ClipDockTests/HomeViewModelSelectionTests.swift`
+     - `/Users/wenfeng/Documents/iphoneapp/ClipDockTests/HomeViewModelSortAndSizeTests.swift`
+     - `/Users/wenfeng/Documents/iphoneapp/ClipDockTests/HomeViewModelMigrationAndDeletionTests.swift`
+     - `/Users/wenfeng/Documents/iphoneapp/ClipDockTests/MigrationHistoryStoreTests.swift`
+4. 验证方法：
+   - 本地回归（Simulator）：`xcodegen generate` + `xcodebuild -project ClipDock.xcodeproj -scheme ClipDock -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.6' CODE_SIGNING_ALLOWED=NO test`
+5. 结果：
+   - 回归通过：共 12 个测试用例，0 failure（2026-02-12 21:48 +08:00）。
