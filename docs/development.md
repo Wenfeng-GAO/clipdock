@@ -149,3 +149,35 @@
    - 编译检查
    - 单元测试
    - 基础静态检查
+
+## 8. 问题记录与阶段性总结（Dev Log）
+
+### 8.1 记录规则（后续开发必须遵守）
+每完成一个最小模块（M0-M9）或每修复一次阻断问题，更新本节追加一条记录，格式固定为：
+1. 日期（YYYY-MM-DD）
+2. 现象（用户可见/开发可见）
+3. 根因（尽量指到具体 API/配置/文件）
+4. 解决方案（改了哪些文件/关键点）
+5. 验证方法（如何确认已修复，真机/命令行/复现场景）
+
+### 8.2 记录
+
+#### 2026-02-12 - Build 失败：security-scoped bookmark 选项不可用于 iOS
+1. 现象：
+   - `xcodebuild` 编译失败，报错 `withSecurityScope is unavailable in iOS`。
+2. 根因：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Services/ExternalStorage/ExternalStorageService.swift` 使用了 `URL.BookmarkCreationOptions.withSecurityScope` / `URL.BookmarkResolutionOptions.withSecurityScope`，该能力是 macOS 专用。
+3. 解决方案：
+   - iOS 改为 `.minimalBookmark`，并保留 macOS 条件编译分支继续使用 `.withSecurityScope`。
+4. 验证方法：
+   - 运行 `xcodebuild -project ClipDock.xcodeproj -scheme ClipDock -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` 验证 `BUILD SUCCEEDED`。
+
+#### 2026-02-12 - 点 Grant Access 闪退：缺少 Photos 权限用途说明
+1. 现象：
+   - 真机点击 `Grant Access` 后 App 立刻退出（闪退）。
+2. 根因：
+   - 打包进 App 的 `Info.plist` 缺少 `NSPhotoLibraryUsageDescription` / `NSPhotoLibraryAddUsageDescription`，iOS 在触发相册权限请求时会强制终止进程。
+3. 解决方案：
+   - 补齐 `/Users/wenfeng/Documents/iphoneapp/ClipDock/Info.plist` 中 Photos 相关用途说明 key（以及必要的基础字段）。
+4. 验证方法：
+   - `xcodebuild ...` 重新编译后，从产物 `ClipDock.app/Info.plist` 确认 key 存在；真机再次点击 `Grant Access` 不再闪退并能弹出系统权限框。
