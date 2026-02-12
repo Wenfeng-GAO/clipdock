@@ -32,8 +32,16 @@ final class ExternalStorageService: ExternalStorageServicing {
     }
 
     func saveFolderBookmark(_ folderURL: URL) throws {
+        // Security-scoped bookmark options are macOS-only. On iOS, persist a minimal bookmark
+        // and rely on the security-scoped URL behavior from UIDocumentPicker.
+        #if os(macOS)
+        let options: URL.BookmarkCreationOptions = [.withSecurityScope]
+        #else
+        let options: URL.BookmarkCreationOptions = [.minimalBookmark]
+        #endif
+
         let bookmarkData = try folderURL.bookmarkData(
-            options: [.withSecurityScope],
+            options: options,
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
@@ -45,10 +53,16 @@ final class ExternalStorageService: ExternalStorageServicing {
             return nil
         }
 
+        #if os(macOS)
+        let options: URL.BookmarkResolutionOptions = [.withSecurityScope]
+        #else
+        let options: URL.BookmarkResolutionOptions = []
+        #endif
+
         var isStale = false
         let folderURL = try URL(
             resolvingBookmarkData: bookmarkData,
-            options: [.withSecurityScope],
+            options: options,
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         )
