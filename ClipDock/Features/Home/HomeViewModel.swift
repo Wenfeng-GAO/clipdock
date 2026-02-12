@@ -15,6 +15,11 @@ final class HomeViewModel: ObservableObject {
     // M5: migration (minimal v1)
     @Published var isMigrating = false
     @Published var migrationProgress: MigrationProgress?
+    @Published var lastMigrationResult: MigrationRunResult?
+
+    // M7: deletion
+    @Published var isDeleting = false
+    @Published var isShowingDeleteConfirm = false
 
     private(set) var hasLoadedInitialData = false
 
@@ -22,17 +27,20 @@ final class HomeViewModel: ObservableObject {
     private let externalStorageService: ExternalStorageServicing
     private let videoLibraryService: VideoLibraryServicing
     private let videoMigrationService: VideoMigrating
+    private let photoDeletionService: PhotoDeleting
 
     init(
         photoPermissionService: PhotoPermissionServicing = PhotoPermissionService(),
         externalStorageService: ExternalStorageServicing = ExternalStorageService(),
         videoLibraryService: VideoLibraryServicing = VideoLibraryService(),
-        videoMigrationService: VideoMigrating = VideoMigrationService()
+        videoMigrationService: VideoMigrating = VideoMigrationService(),
+        photoDeletionService: PhotoDeleting = PhotoDeletionService()
     ) {
         self.photoPermissionService = photoPermissionService
         self.externalStorageService = externalStorageService
         self.videoLibraryService = videoLibraryService
         self.videoMigrationService = videoMigrationService
+        self.photoDeletionService = photoDeletionService
     }
 
     func loadInitialDataIfNeeded() {
@@ -82,6 +90,7 @@ final class HomeViewModel: ObservableObject {
 
         isScanningVideos = true
         selectedVideoIDs.removeAll()
+        lastMigrationResult = nil
         Task {
             let fetchedVideos = await videoLibraryService.fetchVideosSortedByDate(limit: nil)
             videos = fetchedVideos
@@ -133,18 +142,59 @@ final class HomeViewModel: ObservableObject {
 
         isMigrating = true
         migrationProgress = MigrationProgress(completed: 0, total: assetIDs.count, currentFilename: nil, isIndeterminate: true)
+        lastMigrationResult = nil
 
         Task {
-            do {
-                try await videoMigrationService.migrateVideoAssetIDs(assetIDs, to: folderURL) { [weak self] progress in
-                    Task { @MainActor in
-                        self?.migrationProgress = progress
+            await videoMigrationService.migrateVideoAssetIDs(assetIDs, to: folderURL) { [weak self] progress in
+                Task { @MainActor in
+                    self?.migrationProgress = progress
+                }
+            } onResult: { [weak self] result in
+                Task { @MainActor in
+                    self?.isMigrating = false
+                    self?.lastMigrationResult = result
+                    if result.failureCount == 0 {
+                        self?.alertMessage = "Migration completed. (Deletion is available below.)"
+                    } else {
+                        self?.alertMessage = "Migration completed with failures: \(result.successCount) success, \(result.failureCount) failed."
                     }
                 }
-                isMigrating = false
-                alertMessage = "Migration completed. (Deletion will be added next.)"
+            }
+        }
+    }
+
+    // MARK: - Deletion (M7)
+
+    var deletableSuccessCount: Int {
+        lastMigrationResult?.successCount ?? 0
+    }
+
+    func promptDeleteMigratedOriginals() {
+        guard deletableSuccessCount > 0 else { return }
+        isShowingDeleteConfirm = true
+    }
+
+    func deleteMigratedOriginals() {
+        guard !isDeleting else { return }
+        guard permissionState == .authorized else {
+            alertMessage = "Full Photos access is required to delete videos."
+            return
+        }
+        guard let result = lastMigrationResult, !result.successes.isEmpty else {
+            alertMessage = PhotoDeletionError.nothingToDelete.errorDescription
+            return
+        }
+
+        isDeleting = true
+        let assetIDs = result.successes.map(\.assetID)
+        Task {
+            do {
+                try await photoDeletionService.deleteAssets(withLocalIDs: assetIDs)
+                isDeleting = false
+                alertMessage = "Deleted \(assetIDs.count) original video(s)."
+                scanVideos()
             } catch {
-                isMigrating = false
+                isDeleting = false
                 alertMessage = error.localizedDescription
             }
         }

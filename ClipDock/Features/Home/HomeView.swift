@@ -29,6 +29,7 @@ struct HomeView: View {
                 if !viewModel.videos.isEmpty {
                     selectionSection
                     migrationSection
+                    postMigrationSection
                     videoListSection
                 }
             }
@@ -55,6 +56,17 @@ struct HomeView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(viewModel.alertMessage ?? "")
+            }
+            .alert(
+                "Delete Originals?",
+                isPresented: $viewModel.isShowingDeleteConfirm
+            ) {
+                Button("Delete", role: .destructive) {
+                    viewModel.deleteMigratedOriginals()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will delete \(viewModel.deletableSuccessCount) video(s) from Photos after they were exported to external storage.")
             }
             .onAppear {
                 viewModel.loadInitialDataIfNeeded()
@@ -237,6 +249,42 @@ struct HomeView: View {
             }
 
             Text("Note: this version copies selected videos to the external folder. Deleting originals will be added next.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var postMigrationSection: some View {
+        Section("Post-Migration") {
+            if let result = viewModel.lastMigrationResult {
+                LabeledContent("Succeeded", value: "\(result.successCount)")
+                LabeledContent("Failed", value: "\(result.failureCount)")
+
+                if result.failureCount > 0 {
+                    Text("Deletion is only available for succeeded items. We'll add per-item failure details next.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Run a migration to see results here.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                viewModel.promptDeleteMigratedOriginals()
+            } label: {
+                if viewModel.isDeleting {
+                    HStack {
+                        ProgressView()
+                        Text("Deleting...")
+                    }
+                } else {
+                    Text("Delete Migrated Originals")
+                }
+            }
+            .disabled(viewModel.deletableSuccessCount == 0 || viewModel.isDeleting || viewModel.isMigrating)
+
+            Text("Only deletes videos that passed export + validation in the last run.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

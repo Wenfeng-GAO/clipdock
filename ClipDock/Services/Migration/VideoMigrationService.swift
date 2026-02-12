@@ -1,5 +1,6 @@
 import Foundation
 import Photos
+import AVFoundation
 
 struct MigrationProgress: Sendable {
     let completed: Int
@@ -46,8 +47,9 @@ protocol VideoMigrating {
     func migrateVideoAssetIDs(
         _ assetIDs: [String],
         to targetFolderURL: URL,
-        progress: @escaping @Sendable (MigrationProgress) -> Void
-    ) async throws
+        progress: @escaping @Sendable (MigrationProgress) -> Void,
+        onResult: @escaping @Sendable (MigrationRunResult) -> Void
+    ) async
 }
 
 /// Minimal v1: export original video resources to a chosen external folder.
@@ -56,19 +58,22 @@ struct VideoMigrationService: VideoMigrating {
     func migrateVideoAssetIDs(
         _ assetIDs: [String],
         to targetFolderURL: URL,
-        progress: @escaping @Sendable (MigrationProgress) -> Void
-    ) async throws {
+        progress: @escaping @Sendable (MigrationProgress) -> Void,
+        onResult: @escaping @Sendable (MigrationRunResult) -> Void
+    ) async {
         guard !assetIDs.isEmpty else { return }
 
         let started = targetFolderURL.startAccessingSecurityScopedResource()
         if !started {
-            throw VideoMigrationError.targetFolderPermissionExpired
+            onResult(MigrationRunResult(successes: [], failures: assetIDs.map { .init(assetID: $0, message: VideoMigrationError.targetFolderPermissionExpired.localizedDescription) }))
+            return
         }
         defer { targetFolderURL.stopAccessingSecurityScopedResource() }
 
         // Basic write check up-front (with active security scope).
         if !validateFolderWritableWithoutStartingScope(targetFolderURL) {
-            throw VideoMigrationError.targetFolderNotWritable
+            onResult(MigrationRunResult(successes: [], failures: assetIDs.map { .init(assetID: $0, message: VideoMigrationError.targetFolderNotWritable.localizedDescription) }))
+            return
         }
 
         let total = assetIDs.count
@@ -76,8 +81,12 @@ struct VideoMigrationService: VideoMigrating {
 
         let assets = PHAsset.fetchAssets(withLocalIdentifiers: assetIDs, options: nil)
         if assets.count == 0 {
-            throw VideoMigrationError.assetNotFound
+            onResult(MigrationRunResult(successes: [], failures: assetIDs.map { .init(assetID: $0, message: VideoMigrationError.assetNotFound.localizedDescription) }))
+            return
         }
+
+        var successes: [MigrationItemSuccess] = []
+        var failures: [MigrationItemFailure] = []
 
         // Export sequentially for simplicity and stability.
         for index in 0..<assets.count {
@@ -86,7 +95,9 @@ struct VideoMigrationService: VideoMigrating {
 
             // Prefer the primary video resource.
             guard let resource = resources.first(where: { $0.type == .video }) ?? resources.first(where: { $0.type == .pairedVideo }) else {
-                throw VideoMigrationError.noVideoResource
+                failures.append(.init(assetID: asset.localIdentifier, message: VideoMigrationError.noVideoResource.localizedDescription))
+                progress(MigrationProgress(completed: index + 1, total: total, currentFilename: nil, isIndeterminate: false))
+                continue
             }
 
             let originalName = resource.originalFilename
@@ -95,13 +106,20 @@ struct VideoMigrationService: VideoMigrating {
 
             progress(MigrationProgress(completed: index, total: total, currentFilename: outputName, isIndeterminate: true))
 
-            try await export(resource: resource, to: destinationURL)
+            do {
+                let bytes = try await export(resource: resource, expectedDuration: asset.duration, to: destinationURL)
+                successes.append(.init(assetID: asset.localIdentifier, destinationURL: destinationURL, bytes: bytes))
+            } catch {
+                failures.append(.init(assetID: asset.localIdentifier, message: error.localizedDescription))
+            }
 
             progress(MigrationProgress(completed: index + 1, total: total, currentFilename: outputName, isIndeterminate: false))
         }
+
+        onResult(MigrationRunResult(successes: successes, failures: failures))
     }
 
-    private func export(resource: PHAssetResource, to destinationURL: URL) async throws {
+    private func export(resource: PHAssetResource, expectedDuration: TimeInterval, to destinationURL: URL) async throws -> Int64 {
         // Export to sandbox first, then copy to the external folder while holding the security scope.
         // In practice, Photos export can fail with generic errors when writing directly to external storage URLs.
         let fileManager = FileManager.default
@@ -147,6 +165,29 @@ struct VideoMigrationService: VideoMigrating {
         } catch {
             let nsError = error as NSError
             throw VideoMigrationError.copyFailed("\(nsError.domain) (\(nsError.code)): \(nsError.localizedDescription)")
+        }
+
+        // M6 minimal validation: file exists, non-empty, and AVFoundation can read a non-zero duration.
+        let attrs = try fileManager.attributesOfItem(atPath: destinationURL.path)
+        let bytes = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+        if bytes <= 0 {
+            throw VideoMigrationError.exportFailed("exported file is empty")
+        }
+        try await validatePlayableDuration(destinationURL, expectedDuration: expectedDuration)
+        return bytes
+    }
+
+    private func validatePlayableDuration(_ fileURL: URL, expectedDuration: TimeInterval) async throws {
+        let avAsset = AVURLAsset(url: fileURL)
+        let duration = try await avAsset.load(.duration).seconds
+        guard duration.isFinite, duration > 0 else {
+            throw VideoMigrationError.exportFailed("exported file is not playable (duration=0)")
+        }
+
+        // Allow some tolerance; we only use this to gate deletion later.
+        let tolerance = max(2.0, expectedDuration * 0.10)
+        if expectedDuration > 0, abs(duration - expectedDuration) > tolerance {
+            throw VideoMigrationError.exportFailed("duration mismatch (expected ~\(expectedDuration)s, got \(duration)s)")
         }
     }
 
