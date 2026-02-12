@@ -12,9 +12,16 @@ struct HomeView: View {
         return formatter
     }()
 
+    private var appVersionText: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                aboutSection
                 permissionsSection
                 externalStorageSection
                 videoScanSection
@@ -47,6 +54,12 @@ struct HomeView: View {
             .onAppear {
                 viewModel.loadInitialDataIfNeeded()
             }
+        }
+    }
+
+    private var aboutSection: some View {
+        Section("About") {
+            LabeledContent("App Version", value: appVersionText)
         }
     }
 
