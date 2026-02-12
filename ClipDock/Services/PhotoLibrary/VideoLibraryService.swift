@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import Photos
 
 protocol VideoLibraryServicing {
@@ -35,36 +36,92 @@ struct VideoLibraryService: VideoLibraryServicing {
     }
 
     func fetchVideoFileSizesBytes(assetIDs: [String]) async -> [String: Int64] {
-        // PHAsset does not expose file size via public API. For MVP we read `PHAssetResource.fileSize`
-        // through KVC when available. If it fails, we return no entry for that asset.
+        // App Store safe: use public PhotoKit APIs only.
+        // Note: size is best-effort and "local-only" when `isNetworkAccessAllowed=false`.
+        // iCloud-only assets will likely return no size until they are downloaded/exported.
         await Task.detached(priority: .utility) {
             guard !assetIDs.isEmpty else { return [:] }
 
             let fetch = PHAsset.fetchAssets(withLocalIdentifiers: assetIDs, options: nil)
-            var output: [String: Int64] = [:]
-            output.reserveCapacity(min(fetch.count, assetIDs.count))
+            var assets: [PHAsset] = []
+            assets.reserveCapacity(fetch.count)
+            fetch.enumerateObjects { asset, _, _ in assets.append(asset) }
 
-            fetch.enumerateObjects { asset, _, _ in
-                let resources = PHAssetResource.assetResources(for: asset)
-                let resource = resources.first(where: { $0.type == .fullSizeVideo || $0.type == .video }) ?? resources.first
-                guard let resource else { return }
+            return await self.fetchLocalVideoFileSizesBytes(assets: assets, maxConcurrent: 8)
+        }.value
+    }
 
-                let raw = resource.value(forKey: "fileSize")
-                if let n = raw as? NSNumber {
-                    output[asset.localIdentifier] = n.int64Value
-                    return
-                }
-                if let i = raw as? Int {
-                    output[asset.localIdentifier] = Int64(i)
-                    return
-                }
-                if let i64 = raw as? Int64 {
-                    output[asset.localIdentifier] = i64
-                    return
+    private func fetchLocalVideoFileSizesBytes(
+        assets: [PHAsset],
+        maxConcurrent: Int
+    ) async -> [String: Int64] {
+        guard !assets.isEmpty else { return [:] }
+
+        var output: [String: Int64] = [:]
+        output.reserveCapacity(assets.count)
+
+        await withTaskGroup(of: (String, Int64?).self) { group in
+            var it = assets.makeIterator()
+
+            func enqueueNext() {
+                guard let asset = it.next() else { return }
+                group.addTask {
+                    let size = await self.localVideoFileSizeBytes(asset: asset)
+                    return (asset.localIdentifier, size)
                 }
             }
 
-            return output
-        }.value
+            for _ in 0..<min(maxConcurrent, assets.count) {
+                enqueueNext()
+            }
+
+            while let (id, size) = await group.next() {
+                if let size, size > 0 {
+                    output[id] = size
+                }
+                enqueueNext()
+            }
+        }
+
+        return output
+    }
+
+    private func localVideoFileSizeBytes(asset: PHAsset) async -> Int64? {
+        await withCheckedContinuation { continuation in
+            let options = PHVideoRequestOptions()
+            options.isNetworkAccessAllowed = false
+            options.deliveryMode = .fastFormat
+            options.version = .original
+
+            PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
+                guard let urlAsset = avAsset as? AVURLAsset else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                let url = urlAsset.url
+                do {
+                    let values = try url.resourceValues(forKeys: [.fileSizeKey])
+                    if let size = values.fileSize {
+                        continuation.resume(returning: Int64(size))
+                        return
+                    }
+                } catch {
+                    // Fall through to FileManager.
+                }
+
+                do {
+                    let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+                    if let n = attrs[.size] as? NSNumber {
+                        continuation.resume(returning: n.int64Value)
+                        return
+                    }
+                } catch {
+                    // Ignore.
+                }
+
+                continuation.resume(returning: nil)
+            }
+        }
     }
 }
