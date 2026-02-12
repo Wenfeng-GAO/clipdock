@@ -25,6 +25,7 @@ struct HomeView: View {
                 permissionsSection
                 externalStorageSection
                 videoScanSection
+                historySection
 
                 if !viewModel.videos.isEmpty {
                     selectionSection
@@ -77,6 +78,22 @@ struct HomeView: View {
     private var aboutSection: some View {
         Section("About") {
             LabeledContent("App Version", value: appVersionText)
+        }
+    }
+
+    private var historySection: some View {
+        Section("History") {
+            NavigationLink {
+                HistoryView(records: viewModel.migrationHistory)
+            } label: {
+                Text("View Migration History")
+            }
+
+            if let latest = viewModel.migrationHistory.first {
+                Text("Latest: \(latest.finishedAt.formatted(date: .numeric, time: .shortened))  S:\(latest.successes) F:\(latest.failures)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

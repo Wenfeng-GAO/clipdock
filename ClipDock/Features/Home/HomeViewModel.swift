@@ -21,6 +21,9 @@ final class HomeViewModel: ObservableObject {
     @Published var isDeleting = false
     @Published var isShowingDeleteConfirm = false
 
+    // M8: history
+    @Published var migrationHistory: [MigrationHistoryRecord] = []
+
     private(set) var hasLoadedInitialData = false
 
     private let photoPermissionService: PhotoPermissionServicing
@@ -28,19 +31,22 @@ final class HomeViewModel: ObservableObject {
     private let videoLibraryService: VideoLibraryServicing
     private let videoMigrationService: VideoMigrating
     private let photoDeletionService: PhotoDeleting
+    private let historyStore: MigrationHistoryStoring
 
     init(
         photoPermissionService: PhotoPermissionServicing = PhotoPermissionService(),
         externalStorageService: ExternalStorageServicing = ExternalStorageService(),
         videoLibraryService: VideoLibraryServicing = VideoLibraryService(),
         videoMigrationService: VideoMigrating = VideoMigrationService(),
-        photoDeletionService: PhotoDeleting = PhotoDeletionService()
+        photoDeletionService: PhotoDeleting = PhotoDeletionService(),
+        historyStore: MigrationHistoryStoring = MigrationHistoryStore()
     ) {
         self.photoPermissionService = photoPermissionService
         self.externalStorageService = externalStorageService
         self.videoLibraryService = videoLibraryService
         self.videoMigrationService = videoMigrationService
         self.photoDeletionService = photoDeletionService
+        self.historyStore = historyStore
     }
 
     func loadInitialDataIfNeeded() {
@@ -49,6 +55,7 @@ final class HomeViewModel: ObservableObject {
 
         permissionState = photoPermissionService.currentStatus()
         loadSavedFolderIfExists()
+        loadHistory()
     }
 
     func requestPhotoAccess() {
@@ -145,12 +152,14 @@ final class HomeViewModel: ObservableObject {
         lastMigrationResult = nil
 
         Task {
+            let startedAt = Date()
             await videoMigrationService.migrateVideoAssetIDs(assetIDs, to: folderURL) { [weak self] progress in
                 Task { @MainActor in
                     self?.migrationProgress = progress
                 }
             } onResult: { [weak self] result in
                 Task { @MainActor in
+                    let finishedAt = Date()
                     self?.isMigrating = false
                     self?.lastMigrationResult = result
                     if result.failureCount == 0 {
@@ -158,6 +167,8 @@ final class HomeViewModel: ObservableObject {
                     } else {
                         self?.alertMessage = "Migration completed with failures: \(result.successCount) success, \(result.failureCount) failed."
                     }
+
+                    self?.appendHistory(startedAt: startedAt, finishedAt: finishedAt, targetFolderURL: folderURL, result: result)
                 }
             }
         }
@@ -176,7 +187,7 @@ final class HomeViewModel: ObservableObject {
 
     func deleteMigratedOriginals() {
         guard !isDeleting else { return }
-        guard permissionState == .authorized else {
+        guard permissionState.canReadLibrary else {
             alertMessage = "Full Photos access is required to delete videos."
             return
         }
@@ -208,6 +219,43 @@ final class HomeViewModel: ObservableObject {
             }
         } catch {
             alertMessage = ExternalStorageError.invalidBookmark.errorDescription
+        }
+    }
+
+    private func loadHistory() {
+        do {
+            migrationHistory = try historyStore.load()
+        } catch {
+            // Non-fatal: keep history empty
+            migrationHistory = []
+        }
+    }
+
+    private func appendHistory(startedAt: Date, finishedAt: Date, targetFolderURL: URL, result: MigrationRunResult) {
+        let basePath = targetFolderURL.lastPathComponent.isEmpty ? targetFolderURL.path : targetFolderURL.lastPathComponent
+        let items: [MigrationHistoryItem] = result.successes.map {
+            MigrationHistoryItem(assetID: $0.assetID, status: .success, destinationRelativePath: $0.destinationURL.lastPathComponent, bytes: $0.bytes, errorMessage: nil)
+        } + result.failures.map {
+            MigrationHistoryItem(assetID: $0.assetID, status: .failure, destinationRelativePath: nil, bytes: nil, errorMessage: $0.message)
+        }
+
+        let record = MigrationHistoryRecord(
+            id: UUID(),
+            startedAt: startedAt,
+            finishedAt: finishedAt,
+            targetFolderPath: basePath,
+            successes: result.successCount,
+            failures: result.failureCount,
+            items: items
+        )
+
+        migrationHistory.insert(record, at: 0)
+        if migrationHistory.count > 20 {
+            migrationHistory = Array(migrationHistory.prefix(20))
+        }
+
+        Task.detached(priority: .background) { [historyStore] in
+            try? historyStore.append(record)
         }
     }
 }
