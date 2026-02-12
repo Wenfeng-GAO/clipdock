@@ -149,6 +149,9 @@ MVP 冲刺周期：3 天（连续开发 + 每模块闭环验证）。
 实现：列表行展示 `Size`；增加排序切换（Date/Size Largest/Size Smallest）；首屏（200）预取 size + 行内按需加载。
 待办：按你的要求本轮先不做真机复测；后续如发现 size 始终为 `--`，需要确认该视频资源类型或 iOS 版本下 `PHAssetResource` 的 `fileSize` 是否可用。
 风险：当前 size 读取用 KVC（`value(forKey: "fileSize")`），不是公开 API 合约，未来可能失效或不适合上架场景。
+5. 范围扩展：中英文双语（默认跟随系统）
+实现：新增 `en` 与 `zh-Hans` 的 `Localizable.strings`，并将动态文案与 `LocalizedError` 文案接入 `L10n.tr(...)`。
+待办：按你的要求本轮先不做真机复测；后续需要在真机上切换系统语言验证中英文显示是否正确（包含弹窗与错误提示）。
 
 ## 8. 阶段耗时统计（基于历史会话/提交记录）
 

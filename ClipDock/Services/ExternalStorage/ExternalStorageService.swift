@@ -8,11 +8,11 @@ enum ExternalStorageError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingBookmark:
-            return "No external folder selected yet."
+            return L10n.tr("No external folder selected yet.")
         case .invalidBookmark:
-            return "Saved external folder permission expired. Please select the folder again."
+            return L10n.tr("Saved external folder permission expired. Please select the folder again.")
         case .folderNotWritable:
-            return "Selected external folder is not writable."
+            return L10n.tr("Selected external folder is not writable.")
         }
     }
 }

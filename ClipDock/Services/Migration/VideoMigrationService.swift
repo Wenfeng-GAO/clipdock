@@ -26,19 +26,19 @@ enum VideoMigrationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noTargetFolder:
-            return "No external folder selected."
+            return L10n.tr("No external folder selected.")
         case .targetFolderNotWritable:
-            return "External folder is not writable."
+            return L10n.tr("External folder is not writable.")
         case .targetFolderPermissionExpired:
-            return "External folder permission expired. Please choose the external folder again."
+            return L10n.tr("External folder permission expired. Please choose the external folder again.")
         case .assetNotFound:
-            return "Selected video could not be found in the photo library."
+            return L10n.tr("Selected video could not be found in the photo library.")
         case .noVideoResource:
-            return "No exportable video resource found for this item."
+            return L10n.tr("No exportable video resource found for this item.")
         case .exportFailed(let message):
-            return "Export failed: \(message)"
+            return L10n.tr("Export failed: %@", message)
         case .copyFailed(let message):
-            return "Copy failed: \(message)"
+            return L10n.tr("Copy failed: %@", message)
         }
     }
 }

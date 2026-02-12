@@ -12,9 +12,9 @@ enum PhotoDeletionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .nothingToDelete:
-            return "Nothing to delete."
+            return L10n.tr("Nothing to delete.")
         case .deleteFailed(let message):
-            return "Delete failed: \(message)"
+            return L10n.tr("Delete failed: %@", message)
         }
     }
 }
@@ -43,7 +43,7 @@ struct PhotoDeletionService: PhotoDeleting {
                     return
                 }
                 if !success {
-                    continuation.resume(throwing: PhotoDeletionError.deleteFailed("Unknown failure"))
+                    continuation.resume(throwing: PhotoDeletionError.deleteFailed(L10n.tr("Unknown failure")))
                     return
                 }
                 continuation.resume(returning: ())

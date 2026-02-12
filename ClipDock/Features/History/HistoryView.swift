@@ -16,11 +16,11 @@ struct HistoryView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(r.finishedAt, format: Date.FormatStyle(date: .numeric, time: .shortened))
                                 .font(.headline)
-                            Text("Target: \(r.targetFolderPath)")
+                            Text(verbatim: "\(L10n.tr("Target")): \(r.targetFolderPath)")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
-                            Text("Succeeded: \(r.successes)  Failed: \(r.failures)")
+                            Text(verbatim: "\(L10n.tr("Succeeded")): \(r.successes)  \(L10n.tr("Failed")): \(r.failures)")
                                 .font(.subheadline)
                         }
                     }
@@ -50,7 +50,7 @@ private struct HistoryDetailView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                        Text(item.status.rawValue.uppercased())
+                        Text(verbatim: item.status == .success ? L10n.tr("Succeeded") : L10n.tr("Failed"))
                             .font(.caption)
                             .foregroundStyle(item.status == .success ? .green : .red)
                         if let path = item.destinationRelativePath {

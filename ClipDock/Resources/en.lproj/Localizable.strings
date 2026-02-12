@@ -1,0 +1,103 @@
+"Notice" = "Notice";
+"OK" = "OK";
+"Delete Originals?" = "Delete Originals?";
+"Delete" = "Delete";
+"Cancel" = "Cancel";
+"This will delete %d video(s) from Photos after they were exported to external storage." = "This will delete %d video(s) from Photos after they were exported to external storage.";
+
+"About" = "About";
+"App Version" = "App Version";
+
+"History" = "History";
+"View Migration History" = "View Migration History";
+"Latest" = "Latest";
+
+"Photos Permission" = "Photos Permission";
+"Status" = "Status";
+"Grant Access" = "Grant Access";
+
+"External Storage" = "External Storage";
+"Selected Folder" = "Selected Folder";
+"Not Selected" = "Not Selected";
+"Writable" = "Writable";
+"Yes" = "Yes";
+"No" = "No";
+"Choose External Folder" = "Choose External Folder";
+"Recheck Folder Access" = "Recheck Folder Access";
+
+"Video Scan" = "Video Scan";
+"Scanning..." = "Scanning...";
+"Scan Videos" = "Scan Videos";
+"Video Count" = "Video Count";
+"Sort" = "Sort";
+"Loading video sizes..." = "Loading video sizes...";
+
+"Select Videos" = "Select Videos";
+"Selected" = "Selected";
+"Tip: tap a row to toggle selection." = "Tip: tap a row to toggle selection.";
+"Select All" = "Select All";
+"Clear" = "Clear";
+
+"Video List" = "Video List";
+"Duration" = "Duration";
+"Resolution" = "Resolution";
+"Size" = "Size";
+"Showing first %d items. (Paging/filter will be added next.)" = "Showing first %d items. (Paging/filter will be added next.)";
+
+"Migration (Copy to External Folder)" = "Migration (Copy to External Folder)";
+"Selected Videos" = "Selected Videos";
+"Migrating..." = "Migrating...";
+"Start Migration" = "Start Migration";
+"Progress" = "Progress";
+"Note: this version copies selected videos to the external folder. Use Post-Migration to delete originals." = "Note: this version copies selected videos to the external folder. Use Post-Migration to delete originals.";
+
+"Post-Migration" = "Post-Migration";
+"Succeeded" = "Succeeded";
+"Failed" = "Failed";
+"Deletion is only available for succeeded items. We'll add per-item failure details next." = "Deletion is only available for succeeded items. We'll add per-item failure details next.";
+"Run a migration to see results here." = "Run a migration to see results here.";
+"Deleting..." = "Deleting...";
+"Delete Migrated Originals" = "Delete Migrated Originals";
+"Only deletes videos that passed export + validation in the last run." = "Only deletes videos that passed export + validation in the last run.";
+
+"Date (Newest)" = "Date (Newest)";
+"Size (Largest)" = "Size (Largest)";
+"Size (Smallest)" = "Size (Smallest)";
+
+"Not Determined" = "Not Determined";
+"Restricted" = "Restricted";
+"Denied" = "Denied";
+"Authorized" = "Authorized";
+"Limited" = "Limited";
+
+"No history yet." = "No history yet.";
+"Target" = "Target";
+"Summary" = "Summary";
+"Finished" = "Finished";
+"Items" = "Items";
+"Run Details" = "Run Details";
+
+"No external folder selected yet." = "No external folder selected yet.";
+"Saved external folder permission expired. Please select the folder again." = "Saved external folder permission expired. Please select the folder again.";
+"Selected external folder is not writable." = "Selected external folder is not writable.";
+
+"No external folder selected." = "No external folder selected.";
+"External folder is not writable." = "External folder is not writable.";
+"External folder permission expired. Please choose the external folder again." = "External folder permission expired. Please choose the external folder again.";
+"Selected video could not be found in the photo library." = "Selected video could not be found in the photo library.";
+"No exportable video resource found for this item." = "No exportable video resource found for this item.";
+"Export failed: %@" = "Export failed: %@";
+"Copy failed: %@" = "Copy failed: %@";
+
+"Nothing to delete." = "Nothing to delete.";
+"Delete failed: %@" = "Delete failed: %@";
+"Unknown failure" = "Unknown failure";
+
+"Photo access is required before scanning videos." = "Photo access is required before scanning videos.";
+"Photo access is required before migrating videos." = "Photo access is required before migrating videos.";
+"Select at least one video to migrate." = "Select at least one video to migrate.";
+"Migration completed. (Deletion is available below.)" = "Migration completed. (Deletion is available below.)";
+"Migration completed with failures: %d success, %d failed." = "Migration completed with failures: %d success, %d failed.";
+"Full Photos access is required to delete videos." = "Full Photos access is required to delete videos.";
+"Deleted %d original video(s)." = "Deleted %d original video(s).";
+

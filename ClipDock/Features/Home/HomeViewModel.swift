@@ -9,9 +9,9 @@ enum VideoSortMode: String, CaseIterable, Identifiable {
 
     var displayText: String {
         switch self {
-        case .dateDesc: "Date (Newest)"
-        case .sizeDesc: "Size (Largest)"
-        case .sizeAsc: "Size (Smallest)"
+        case .dateDesc: L10n.tr("Date (Newest)")
+        case .sizeDesc: L10n.tr("Size (Largest)")
+        case .sizeAsc: L10n.tr("Size (Smallest)")
         }
     }
 }
@@ -121,7 +121,7 @@ final class HomeViewModel: ObservableObject {
 
     func scanVideos() {
         guard permissionState.canReadLibrary else {
-            alertMessage = "Photo access is required before scanning videos."
+            alertMessage = L10n.tr("Photo access is required before scanning videos.")
             return
         }
 
@@ -244,7 +244,7 @@ final class HomeViewModel: ObservableObject {
     func startMigration() {
         guard !isMigrating else { return }
         guard permissionState.canReadLibrary else {
-            alertMessage = "Photo access is required before migrating videos."
+            alertMessage = L10n.tr("Photo access is required before migrating videos.")
             return
         }
         guard let folderURL = selectedFolderURL else {
@@ -259,7 +259,7 @@ final class HomeViewModel: ObservableObject {
         let selected = selectedVideoIDs
         let assetIDs = videos.filter { selected.contains($0.id) }.map(\.id)
         guard !assetIDs.isEmpty else {
-            alertMessage = "Select at least one video to migrate."
+            alertMessage = L10n.tr("Select at least one video to migrate.")
             return
         }
 
@@ -279,9 +279,9 @@ final class HomeViewModel: ObservableObject {
                     self?.isMigrating = false
                     self?.lastMigrationResult = result
                     if result.failureCount == 0 {
-                        self?.alertMessage = "Migration completed. (Deletion is available below.)"
+                        self?.alertMessage = L10n.tr("Migration completed. (Deletion is available below.)")
                     } else {
-                        self?.alertMessage = "Migration completed with failures: \(result.successCount) success, \(result.failureCount) failed."
+                        self?.alertMessage = L10n.tr("Migration completed with failures: %d success, %d failed.", result.successCount, result.failureCount)
                     }
 
                     self?.appendHistory(startedAt: startedAt, finishedAt: finishedAt, targetFolderURL: folderURL, result: result)
@@ -304,7 +304,7 @@ final class HomeViewModel: ObservableObject {
     func deleteMigratedOriginals() {
         guard !isDeleting else { return }
         guard permissionState.canReadLibrary else {
-            alertMessage = "Full Photos access is required to delete videos."
+            alertMessage = L10n.tr("Full Photos access is required to delete videos.")
             return
         }
         guard let result = lastMigrationResult, !result.successes.isEmpty else {
@@ -318,7 +318,7 @@ final class HomeViewModel: ObservableObject {
             do {
                 try await photoDeletionService.deleteAssets(withLocalIDs: assetIDs)
                 isDeleting = false
-                alertMessage = "Deleted \(assetIDs.count) original video(s)."
+                alertMessage = L10n.tr("Deleted %d original video(s).", assetIDs.count)
                 scanVideos()
             } catch {
                 isDeleting = false

@@ -14,15 +14,15 @@ enum PhotoPermissionState: String {
     var displayText: String {
         switch self {
         case .notDetermined:
-            return "Not Determined"
+            return L10n.tr("Not Determined")
         case .restricted:
-            return "Restricted"
+            return L10n.tr("Restricted")
         case .denied:
-            return "Denied"
+            return L10n.tr("Denied")
         case .authorized:
-            return "Authorized"
+            return L10n.tr("Authorized")
         case .limited:
-            return "Limited"
+            return L10n.tr("Limited")
         }
     }
 }

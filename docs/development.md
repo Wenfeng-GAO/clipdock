@@ -239,3 +239,19 @@
    - 编译验证：`xcodegen generate` + `xcodebuild -project ClipDock.xcodeproj -scheme ClipDock -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`。
 5. 风险说明：
    - 当前读取大小使用了 KVC（`value(forKey: "fileSize")`），不是公开 API 合约，可能在未来 iOS 版本失效，或不适合 App Store 上架场景；失效时会显示 `--`，且大小排序会把未知项放到底部。
+
+#### 2026-02-12 - 国际化（中英文双语，默认跟随系统）
+1. 现象：
+   - 需要支持中文（简体）与英文两种语言，并默认跟随系统语言，无需应用内单独语言开关。
+2. 根因：
+   - 之前 UI/错误提示字符串大多为英文硬编码，系统切换中文后仍显示英文。
+3. 解决方案：
+   - 新增本地化资源：
+     - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Resources/en.lproj/Localizable.strings`
+     - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Resources/zh-Hans.lproj/Localizable.strings`
+   - 新增轻量本地化工具：
+     - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Localization/L10n.swift`
+   - 将非 `Text("...")` 直出的动态文案、错误描述（`LocalizedError`）、以及 ViewModel 中的提示信息改为走 `L10n.tr(...)`，确保随系统语言变化。
+4. 验证方法：
+   - 编译验证：`xcodegen generate` + `xcodebuild -project ClipDock.xcodeproj -scheme ClipDock -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`。
+   - 真机验证（后续）：iOS 设置中切换语言为中文，确认关键页面与弹窗文案为中文；切换回英文后恢复英文。

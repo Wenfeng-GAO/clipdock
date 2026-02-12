@@ -44,7 +44,7 @@ struct HomeView: View {
                 }
             }
             .alert(
-                "Notice",
+                L10n.tr("Notice"),
                 isPresented: Binding(
                     get: { viewModel.alertMessage != nil },
                     set: { newValue in
@@ -56,10 +56,10 @@ struct HomeView: View {
             ) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(viewModel.alertMessage ?? "")
+                Text(verbatim: viewModel.alertMessage ?? "")
             }
             .alert(
-                "Delete Originals?",
+                L10n.tr("Delete Originals?"),
                 isPresented: $viewModel.isShowingDeleteConfirm
             ) {
                 Button("Delete", role: .destructive) {
@@ -67,7 +67,12 @@ struct HomeView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This will delete \(viewModel.deletableSuccessCount) video(s) from Photos after they were exported to external storage.")
+                Text(
+                    verbatim: L10n.tr(
+                        "This will delete %d video(s) from Photos after they were exported to external storage.",
+                        viewModel.deletableSuccessCount
+                    )
+                )
             }
             .onAppear {
                 viewModel.loadInitialDataIfNeeded()
@@ -90,7 +95,9 @@ struct HomeView: View {
             }
 
             if let latest = viewModel.migrationHistory.first {
-                Text("Latest: \(latest.finishedAt.formatted(date: .numeric, time: .shortened))  S:\(latest.successes) F:\(latest.failures)")
+                Text(
+                    verbatim: "\(L10n.tr("Latest")): \(latest.finishedAt.formatted(date: .numeric, time: .shortened))  \(L10n.tr("Succeeded")): \(latest.successes)  \(L10n.tr("Failed")): \(latest.failures)"
+                )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -120,7 +127,9 @@ struct HomeView: View {
                 }
             }
 
-            LabeledContent("Writable", value: viewModel.isFolderWritable ? "Yes" : "No")
+            LabeledContent("Writable") {
+                Text(verbatim: viewModel.isFolderWritable ? L10n.tr("Yes") : L10n.tr("No"))
+            }
 
             Button("Choose External Folder") {
                 isShowingFolderPicker = true
@@ -210,10 +219,12 @@ struct HomeView: View {
                         Text(video.creationDate, format: Date.FormatStyle(date: .numeric, time: .shortened))
                             .font(.subheadline)
                             .foregroundStyle(.primary)
-                        Text("Duration: \(durationFormatter.string(from: video.duration) ?? "--")  Resolution: \(video.resolutionText)")
+                        Text(
+                            verbatim: "\(L10n.tr("Duration")): \(durationFormatter.string(from: video.duration) ?? "--")  \(L10n.tr("Resolution")): \(video.resolutionText)"
+                        )
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("Size: \(viewModel.formattedSizeText(for: video.id))")
+                        Text(verbatim: "\(L10n.tr("Size")): \(viewModel.formattedSizeText(for: video.id))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -236,7 +247,12 @@ struct HomeView: View {
             }
 
             if viewModel.videos.count > cap {
-                Text("Showing first \(cap) items. (Paging/filter will be added next.)")
+                Text(
+                    verbatim: L10n.tr(
+                        "Showing first %d items. (Paging/filter will be added next.)",
+                        cap
+                    )
+                )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -288,7 +304,7 @@ struct HomeView: View {
                 }
             }
 
-            Text("Note: this version copies selected videos to the external folder. Deleting originals will be added next.")
+            Text("Note: this version copies selected videos to the external folder. Use Post-Migration to delete originals.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

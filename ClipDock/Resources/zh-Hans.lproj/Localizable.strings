@@ -1,0 +1,103 @@
+"Notice" = "提示";
+"OK" = "好的";
+"Delete Originals?" = "删除原视频？";
+"Delete" = "删除";
+"Cancel" = "取消";
+"This will delete %d video(s) from Photos after they were exported to external storage." = "将从相册删除 %d 个视频（前提是它们已成功导出到外接存储）。";
+
+"About" = "关于";
+"App Version" = "版本";
+
+"History" = "历史";
+"View Migration History" = "查看迁移历史";
+"Latest" = "最近";
+
+"Photos Permission" = "相册权限";
+"Status" = "状态";
+"Grant Access" = "授权访问";
+
+"External Storage" = "外接存储";
+"Selected Folder" = "已选择目录";
+"Not Selected" = "未选择";
+"Writable" = "可写";
+"Yes" = "是";
+"No" = "否";
+"Choose External Folder" = "选择外接目录";
+"Recheck Folder Access" = "重新检查目录权限";
+
+"Video Scan" = "扫描视频";
+"Scanning..." = "扫描中...";
+"Scan Videos" = "扫描视频";
+"Video Count" = "视频数量";
+"Sort" = "排序";
+"Loading video sizes..." = "正在加载视频大小...";
+
+"Select Videos" = "选择视频";
+"Selected" = "已选择";
+"Tip: tap a row to toggle selection." = "提示：点击列表项可切换选择。";
+"Select All" = "全选";
+"Clear" = "清空";
+
+"Video List" = "视频列表";
+"Duration" = "时长";
+"Resolution" = "分辨率";
+"Size" = "大小";
+"Showing first %d items. (Paging/filter will be added next.)" = "仅显示前 %d 条。（后续会加入分页/筛选）";
+
+"Migration (Copy to External Folder)" = "迁移（复制到外接目录）";
+"Selected Videos" = "已选择视频";
+"Migrating..." = "迁移中...";
+"Start Migration" = "开始迁移";
+"Progress" = "进度";
+"Note: this version copies selected videos to the external folder. Use Post-Migration to delete originals." = "说明：当前版本会将选中视频复制到外接目录。可在“迁移后操作”中删除原视频以释放空间。";
+
+"Post-Migration" = "迁移后操作";
+"Succeeded" = "成功";
+"Failed" = "失败";
+"Deletion is only available for succeeded items. We'll add per-item failure details next." = "删除仅对成功项可用。（后续会补充逐条失败详情）";
+"Run a migration to see results here." = "运行一次迁移后在这里查看结果。";
+"Deleting..." = "删除中...";
+"Delete Migrated Originals" = "删除已迁移的原视频";
+"Only deletes videos that passed export + validation in the last run." = "仅删除上一次迁移中“导出并校验成功”的视频。";
+
+"Date (Newest)" = "日期（最新）";
+"Size (Largest)" = "大小（从大到小）";
+"Size (Smallest)" = "大小（从小到大）";
+
+"Not Determined" = "未决定";
+"Restricted" = "受限";
+"Denied" = "已拒绝";
+"Authorized" = "已授权";
+"Limited" = "限制访问";
+
+"No history yet." = "暂无历史记录。";
+"Target" = "目标";
+"Summary" = "总览";
+"Finished" = "完成时间";
+"Items" = "条目";
+"Run Details" = "运行详情";
+
+"No external folder selected yet." = "尚未选择外接目录。";
+"Saved external folder permission expired. Please select the folder again." = "已保存的外接目录权限已过期，请重新选择目录。";
+"Selected external folder is not writable." = "选择的外接目录不可写。";
+
+"No external folder selected." = "未选择外接目录。";
+"External folder is not writable." = "外接目录不可写。";
+"External folder permission expired. Please choose the external folder again." = "外接目录权限已过期，请重新选择外接目录。";
+"Selected video could not be found in the photo library." = "在相册中找不到所选视频。";
+"No exportable video resource found for this item." = "该条目没有可导出的原始视频资源。";
+"Export failed: %@" = "导出失败：%@";
+"Copy failed: %@" = "复制失败：%@";
+
+"Nothing to delete." = "没有可删除的内容。";
+"Delete failed: %@" = "删除失败：%@";
+"Unknown failure" = "未知失败";
+
+"Photo access is required before scanning videos." = "扫描前需要授予相册权限。";
+"Photo access is required before migrating videos." = "迁移前需要授予相册权限。";
+"Select at least one video to migrate." = "请至少选择 1 个视频再开始迁移。";
+"Migration completed. (Deletion is available below.)" = "迁移完成。（可在下方执行删除原视频）";
+"Migration completed with failures: %d success, %d failed." = "迁移完成：成功 %d 个，失败 %d 个。";
+"Full Photos access is required to delete videos." = "删除视频需要“完全访问”相册权限。";
+"Deleted %d original video(s)." = "已删除 %d 个原视频。";
+
