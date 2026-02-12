@@ -203,3 +203,15 @@
 4. 验证方法：
    - 编译验证：`xcodebuild -project ClipDock.xcodeproj -scheme ClipDock -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`。
    - 真机验证（需要外接存储）：选中 1-2 个视频，点击 `Start Migration`，在外接目录可见导出的文件且大小 > 0。
+
+#### 2026-02-12 - 迁移 Copy 失败：外接盘无权限（你 don’t have permission to access）
+1. 现象：
+   - 迁移时报错类似：`couldn't be copied because you don't have permission to access "<ExternalVolumeName>"`。
+2. 根因（推断，基于 iOS 文件提供者/外接存储行为）：
+   - 迁移过程未能稳定持有外接目录的 security scope，或对外接盘的写入需要文件协调（`NSFileCoordinator`）才能在某些 provider/外接盘上成功。
+3. 解决方案：
+   - 在迁移开始时对目标目录 `startAccessingSecurityScopedResource()`，并在整个迁移任务期间保持开启；若无法开启则提示用户重新选择外接目录。
+   - 导出流程固定为“先导出到 App 临时目录，再用 `NSFileCoordinator` 协调写入外接盘（forReplacing）”。
+   - 同步增强错误信息：将 domain/code 带出，便于定位失败类型。
+4. 验证方法：
+   - 真机外接盘：重新选择外接目录后迁移 1 个视频，确认外接盘出现导出文件且可播放。

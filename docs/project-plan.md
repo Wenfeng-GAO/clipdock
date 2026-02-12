@@ -130,6 +130,9 @@ MVP 冲刺周期：3 天（连续开发 + 每模块闭环验证）。
    - 目标路径：`docs/assets/clipdock-progress-2026-02-12.png`
    - 引用（文件落盘后可在 Markdown 中显示）：
      - ![ClipDock Progress 2026-02-12](assets/clipdock-progress-2026-02-12.png)
+2. 迁移失败截图（外接盘权限不足）：
+   - `docs/assets/clipdock-migration-permission-2026-02-12.png`
+   - ![Migration Permission Error 2026-02-12](assets/clipdock-migration-permission-2026-02-12.png)
 
 下一步（Day 1 余量 / Day 2）：
 1. `M4 手动选择模块`：多选/全选/统计
@@ -138,3 +141,4 @@ MVP 冲刺周期：3 天（连续开发 + 每模块闭环验证）。
 补充进展（代码已完成，待真机外设验证）：
 1. `M4 手动选择模块`：已实现（列表勾选、全选、清空、选中计数）
 2. `M5 迁移执行器（复制到外接盘）`：已实现最小版本（复制 + 最小校验 + 进度展示）
+3. `M5 外设权限问题`：真机遇到“无权限访问外接盘”导致 copy 失败，已在后续版本修复（迁移任务期间持有 security scope + `NSFileCoordinator` 写入），待复测确认。

@@ -16,9 +16,11 @@ struct MigrationProgress: Sendable {
 enum VideoMigrationError: LocalizedError {
     case noTargetFolder
     case targetFolderNotWritable
+    case targetFolderPermissionExpired
     case assetNotFound
     case noVideoResource
     case exportFailed(String)
+    case copyFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -26,12 +28,16 @@ enum VideoMigrationError: LocalizedError {
             return "No external folder selected."
         case .targetFolderNotWritable:
             return "External folder is not writable."
+        case .targetFolderPermissionExpired:
+            return "External folder permission expired. Please choose the external folder again."
         case .assetNotFound:
             return "Selected video could not be found in the photo library."
         case .noVideoResource:
             return "No exportable video resource found for this item."
         case .exportFailed(let message):
             return "Export failed: \(message)"
+        case .copyFailed(let message):
+            return "Copy failed: \(message)"
         }
     }
 }
@@ -54,8 +60,14 @@ struct VideoMigrationService: VideoMigrating {
     ) async throws {
         guard !assetIDs.isEmpty else { return }
 
-        // Basic write check up-front.
-        if !validateFolderWritable(targetFolderURL) {
+        let started = targetFolderURL.startAccessingSecurityScopedResource()
+        if !started {
+            throw VideoMigrationError.targetFolderPermissionExpired
+        }
+        defer { targetFolderURL.stopAccessingSecurityScopedResource() }
+
+        // Basic write check up-front (with active security scope).
+        if !validateFolderWritableWithoutStartingScope(targetFolderURL) {
             throw VideoMigrationError.targetFolderNotWritable
         }
 
@@ -128,20 +140,14 @@ struct VideoMigrationService: VideoMigrating {
         }
 
         let folderURL = destinationURL.deletingLastPathComponent()
-        let started = folderURL.startAccessingSecurityScopedResource()
-        defer {
-            if started {
-                folderURL.stopAccessingSecurityScopedResource()
-            }
-        }
-
         try fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
-        // Copy then remove temp to reduce risk of losing data if the copy fails mid-way.
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            try fileManager.removeItem(at: destinationURL)
+        do {
+            try coordinatedReplaceCopyItem(from: tempURL, to: destinationURL)
+        } catch {
+            let nsError = error as NSError
+            throw VideoMigrationError.copyFailed("\(nsError.domain) (\(nsError.code)): \(nsError.localizedDescription)")
         }
-        try fileManager.copyItem(at: tempURL, to: destinationURL)
     }
 
     private func makeOutputFilename(asset: PHAsset, originalFilename: String) -> String {
@@ -178,21 +184,45 @@ struct VideoMigrationService: VideoMigrating {
         return folderURL.appendingPathComponent(uuidName)
     }
 
-    private func validateFolderWritable(_ folderURL: URL) -> Bool {
+    private func validateFolderWritableWithoutStartingScope(_ folderURL: URL) -> Bool {
         do {
-            let started = folderURL.startAccessingSecurityScopedResource()
-            defer {
-                if started {
-                    folderURL.stopAccessingSecurityScopedResource()
-                }
-            }
-
             let probeURL = folderURL.appendingPathComponent(".clipdock_write_probe_\(UUID().uuidString)")
             try Data("probe".utf8).write(to: probeURL, options: .atomic)
             try FileManager.default.removeItem(at: probeURL)
             return true
         } catch {
             return false
+        }
+    }
+
+    private func coordinatedReplaceCopyItem(from sourceURL: URL, to destinationURL: URL) throws {
+        let coordinator = NSFileCoordinator()
+        var coordinationError: NSError?
+        var innerError: Error?
+
+        coordinator.coordinate(
+            readingItemAt: sourceURL,
+            options: [],
+            writingItemAt: destinationURL,
+            options: .forReplacing,
+            error: &coordinationError
+        ) { coordinatedSourceURL, coordinatedDestinationURL in
+            do {
+                let fm = FileManager.default
+                if fm.fileExists(atPath: coordinatedDestinationURL.path) {
+                    try fm.removeItem(at: coordinatedDestinationURL)
+                }
+                try fm.copyItem(at: coordinatedSourceURL, to: coordinatedDestinationURL)
+            } catch {
+                innerError = error
+            }
+        }
+
+        if let coordinationError {
+            throw coordinationError
+        }
+        if let innerError {
+            throw innerError
         }
     }
 }

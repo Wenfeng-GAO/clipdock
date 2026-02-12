@@ -91,6 +91,9 @@ final class ExternalStorageService: ExternalStorageServicing {
 
     private func withSecurityScopedAccess<T>(to folderURL: URL, _ action: () throws -> T) throws -> T {
         let started = folderURL.startAccessingSecurityScopedResource()
+        if !started {
+            throw ExternalStorageError.invalidBookmark
+        }
         defer {
             if started {
                 folderURL.stopAccessingSecurityScopedResource()
