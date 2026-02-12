@@ -2,6 +2,8 @@
 
 ClipDock is an iOS app that helps users move videos from iPhone Photos to external storage, then delete originals to free up device space.
 
+[![CI](https://github.com/Wenfeng-GAO/clipdock/actions/workflows/ci.yml/badge.svg)](https://github.com/Wenfeng-GAO/clipdock/actions/workflows/ci.yml)
+
 ## Current docs
 
 - Product doc: `docs/product.md`
@@ -33,3 +35,11 @@ If `xcodebuild` reports Command Line Tools only, switch developer directory afte
 ```bash
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 ```
+
+## CI
+
+GitHub Actions runs `xcodegen generate` and `xcodebuild test` on PRs and `main`.
+
+## License
+
+MIT. See `LICENSE`.

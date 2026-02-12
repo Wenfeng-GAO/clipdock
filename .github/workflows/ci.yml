@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+
+      - name: Build & test
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          preferred_devices=(
+            "iPhone 16 Pro"
+            "iPhone 16"
+            "iPhone 15 Pro"
+            "iPhone 15"
+            "iPhone 14 Pro"
+            "iPhone 14"
+          )
+
+          dest=""
+          for name in "${preferred_devices[@]}"; do
+            if xcrun simctl list devices available | grep -Fq "${name} ("; then
+              dest="platform=iOS Simulator,name=${name}"
+              break
+            fi
+          done
+
+          if [[ -z "${dest}" ]]; then
+            first_iphone="$(
+              xcrun simctl list devices available \
+                | sed -n 's/^ *\\(iPhone[^()]*\\) (.*$/\\1/p' \
+                | head -n 1
+            )"
+            if [[ -n "${first_iphone}" ]]; then
+              dest="platform=iOS Simulator,name=${first_iphone}"
+            fi
+          fi
+
+          if [[ -z "${dest}" ]]; then
+            echo "No available iOS Simulator devices found." >&2
+            xcrun simctl list devices available || true
+            exit 1
+          fi
+
+          xcodebuild \
+            -project ClipDock.xcodeproj \
+            -scheme ClipDock \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "${dest}" \
+            -resultBundlePath TestResults.xcresult \
+            test
+
+      - name: Upload xcresult (failure only)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults.xcresult
+          path: TestResults.xcresult

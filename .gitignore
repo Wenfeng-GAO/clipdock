@@ -5,6 +5,19 @@
 DerivedData/
 build/
 *.xcodeproj/
+xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcuserdatad/
 *.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.xcresult/
+
+# SwiftPM / builds
+.swiftpm/
+.build/
+
+# Artifacts
+*.ipa
+*.dSYM.zip
+*.dSYM
