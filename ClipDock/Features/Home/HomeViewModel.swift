@@ -1,5 +1,21 @@
 import Foundation
 
+enum VideoSortMode: String, CaseIterable, Identifiable {
+    case dateDesc
+    case sizeDesc
+    case sizeAsc
+
+    var id: String { rawValue }
+
+    var displayText: String {
+        switch self {
+        case .dateDesc: "Date (Newest)"
+        case .sizeDesc: "Size (Largest)"
+        case .sizeAsc: "Size (Smallest)"
+        }
+    }
+}
+
 @MainActor
 final class HomeViewModel: ObservableObject {
     @Published var permissionState: PhotoPermissionState = .notDetermined
@@ -8,6 +24,18 @@ final class HomeViewModel: ObservableObject {
     @Published var videos: [VideoAssetSummary] = []
     @Published var isScanningVideos = false
     @Published var alertMessage: String?
+
+    // Sorting + size metadata (M9)
+    @Published var sortMode: VideoSortMode = .dateDesc {
+        didSet {
+            applySort()
+            if sortMode != .dateDesc {
+                prefetchSizesForFirstPageIfNeeded()
+            }
+        }
+    }
+    @Published private(set) var videoSizeBytesByID: [String: Int64] = [:]
+    @Published private(set) var isFetchingVideoSizes = false
 
     // M4: manual selection
     @Published var selectedVideoIDs: Set<String> = []
@@ -32,6 +60,8 @@ final class HomeViewModel: ObservableObject {
     private let videoMigrationService: VideoMigrating
     private let photoDeletionService: PhotoDeleting
     private let historyStore: MigrationHistoryStoring
+
+    private var inFlightSizeAssetIDs: Set<String> = []
 
     init(
         photoPermissionService: PhotoPermissionServicing = PhotoPermissionService(),
@@ -98,10 +128,16 @@ final class HomeViewModel: ObservableObject {
         isScanningVideos = true
         selectedVideoIDs.removeAll()
         lastMigrationResult = nil
+        videoSizeBytesByID = [:]
+        inFlightSizeAssetIDs = []
         Task {
             let fetchedVideos = await videoLibraryService.fetchVideosSortedByDate(limit: nil)
             videos = fetchedVideos
+            applySort()
             isScanningVideos = false
+
+            // Preload sizes for the first page so the list can display sizes immediately.
+            prefetchSizesForFirstPageIfNeeded()
         }
     }
 
@@ -121,6 +157,86 @@ final class HomeViewModel: ObservableObject {
 
     func clearSelection() {
         selectedVideoIDs.removeAll()
+    }
+
+    // MARK: - Sorting + Size (M9)
+
+    func formattedSizeText(for assetID: String) -> String {
+        guard let bytes = videoSizeBytesByID[assetID] else { return "--" }
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+
+    func ensureSizeLoaded(for assetID: String) {
+        guard permissionState.canReadLibrary else { return }
+        guard videoSizeBytesByID[assetID] == nil else { return }
+        guard !inFlightSizeAssetIDs.contains(assetID) else { return }
+        inFlightSizeAssetIDs.insert(assetID)
+
+        Task {
+            let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: [assetID])
+            if let bytes = sizes[assetID] {
+                videoSizeBytesByID[assetID] = bytes
+            }
+            inFlightSizeAssetIDs.remove(assetID)
+
+            // Only re-sort automatically when sorting by size to avoid annoying reorders.
+            if sortMode != .dateDesc {
+                applySort()
+            }
+        }
+    }
+
+    private func prefetchSizesForFirstPageIfNeeded() {
+        guard permissionState.canReadLibrary else { return }
+        let cap = min(videos.count, 200)
+        guard cap > 0 else { return }
+
+        let ids = Array(videos.prefix(cap).map(\.id))
+        let missing = ids.filter { videoSizeBytesByID[$0] == nil && !inFlightSizeAssetIDs.contains($0) }
+        guard !missing.isEmpty else { return }
+
+        isFetchingVideoSizes = true
+        missing.forEach { inFlightSizeAssetIDs.insert($0) }
+        Task {
+            let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: missing)
+            for (id, bytes) in sizes {
+                videoSizeBytesByID[id] = bytes
+            }
+            missing.forEach { inFlightSizeAssetIDs.remove($0) }
+            isFetchingVideoSizes = false
+
+            if sortMode != .dateDesc {
+                applySort()
+            }
+        }
+    }
+
+    private func applySort() {
+        switch sortMode {
+        case .dateDesc:
+            videos.sort { $0.creationDate > $1.creationDate }
+        case .sizeDesc:
+            videos.sort { a, b in
+                let sa = videoSizeBytesByID[a.id]
+                let sb = videoSizeBytesByID[b.id]
+                if let sa, let sb, sa != sb { return sa > sb }
+                if sa != nil && sb == nil { return true }
+                if sa == nil && sb != nil { return false }
+                return a.creationDate > b.creationDate
+            }
+        case .sizeAsc:
+            videos.sort { a, b in
+                let sa = videoSizeBytesByID[a.id]
+                let sb = videoSizeBytesByID[b.id]
+                if let sa, let sb, sa != sb { return sa < sb }
+                if sa != nil && sb == nil { return true }
+                if sa == nil && sb != nil { return false }
+                return a.creationDate > b.creationDate
+            }
+        }
     }
 
     // MARK: - Migration (M5 minimal)

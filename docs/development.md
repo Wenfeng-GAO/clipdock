@@ -222,3 +222,20 @@
 
 5. 复测结果：
    - 复测通过（用户确认迁移完成弹窗出现，外接盘可见导出文件）。
+
+#### 2026-02-12 - M9：显示视频大小 + 按大小排序（正序/倒序）
+1. 现象：
+   - 需要在视频列表中展示每条视频的大小，并支持按大小排序（从大到小/从小到大），同时保留按日期排序能力。
+2. 根因：
+   - PhotoKit 的 `PHAsset` 在公开 API 中不直接暴露“文件大小”字段，需要额外从资源层获取（或通过导出计算），并注意不要对 1000+ 视频做全量 IO。
+3. 解决方案：
+   - 文件 `/Users/wenfeng/Documents/iphoneapp/ClipDock/Services/PhotoLibrary/VideoLibraryService.swift`：
+     新增批量读取大小方法 `fetchVideoFileSizesBytes(assetIDs:)`，通过 `PHAssetResource.assetResources(for:)` 并用 KVC 读取 `fileSize`（MVP 用）。
+   - 文件 `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeViewModel.swift`：
+     新增 `sortMode`（Date/Size Largest/Size Smallest）、`videoSizeBytesByID` 缓存与“首屏（200）预取 + 行内按需加载”策略；按大小排序时将未知 size 的条目放到列表底部，并以 `creationDate desc` 做 tie-breaker。
+   - 文件 `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeView.swift`：
+     新增分段控件切换排序方式；列表行新增 `Size: ...` 展示。
+4. 验证方法：
+   - 编译验证：`xcodegen generate` + `xcodebuild -project ClipDock.xcodeproj -scheme ClipDock -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`。
+5. 风险说明：
+   - 当前读取大小使用了 KVC（`value(forKey: "fileSize")`），不是公开 API 合约，可能在未来 iOS 版本失效，或不适合 App Store 上架场景；失效时会显示 `--`，且大小排序会把未知项放到底部。

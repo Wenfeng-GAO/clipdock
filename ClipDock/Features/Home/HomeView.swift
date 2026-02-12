@@ -134,7 +134,7 @@ struct HomeView: View {
     }
 
     private var videoScanSection: some View {
-        Section("Video Scan (Date Desc)") {
+        Section("Video Scan") {
             Button {
                 viewModel.scanVideos()
             } label: {
@@ -150,6 +150,23 @@ struct HomeView: View {
             .disabled(viewModel.isScanningVideos || !viewModel.permissionState.canReadLibrary)
 
             LabeledContent("Video Count", value: "\(viewModel.videos.count)")
+
+            Picker("Sort", selection: $viewModel.sortMode) {
+                ForEach(VideoSortMode.allCases) { mode in
+                    Text(mode.displayText).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(viewModel.videos.isEmpty)
+
+            if viewModel.isFetchingVideoSizes {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Loading video sizes...")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -196,6 +213,9 @@ struct HomeView: View {
                         Text("Duration: \(durationFormatter.string(from: video.duration) ?? "--")  Resolution: \(video.resolutionText)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        Text("Size: \(viewModel.formattedSizeText(for: video.id))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     if viewModel.selectedVideoIDs.contains(video.id) {
@@ -209,6 +229,9 @@ struct HomeView: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     viewModel.toggleSelection(for: video.id)
+                }
+                .task {
+                    viewModel.ensureSizeLoaded(for: video.id)
                 }
             }
 
