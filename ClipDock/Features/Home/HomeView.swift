@@ -18,6 +18,7 @@ struct HomeView: View {
                 permissionsSection
                 externalStorageSection
                 videoScanSection
+                migrationSection
             }
             .navigationTitle("ClipDock")
             .sheet(isPresented: $isShowingFolderPicker) {
@@ -104,16 +105,113 @@ struct HomeView: View {
             LabeledContent("Video Count", value: "\(viewModel.videos.count)")
 
             if !viewModel.videos.isEmpty {
-                ForEach(viewModel.videos.prefix(20)) { video in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(video.creationDate, format: Date.FormatStyle(date: .numeric, time: .shortened))
-                            .font(.subheadline)
-                        Text("Duration: \(durationFormatter.string(from: video.duration) ?? "--")  Resolution: \(video.resolutionText)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                HStack {
+                    Text("Selected")
+                    Spacer()
+                    Text("\(viewModel.selectedVideoIDs.count)")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 12) {
+                    Button("Select All") {
+                        viewModel.selectAllScannedVideos()
                     }
+                    .buttonStyle(.bordered)
+
+                    Button("Clear") {
+                        viewModel.clearSelection()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
+                    .disabled(viewModel.selectedVideoIDs.isEmpty)
+                }
+
+                // Render a capped list for now to avoid heavy UI work on very large libraries.
+                // We'll add paging/filtering next.
+                let cap = min(viewModel.videos.count, 200)
+                ForEach(viewModel.videos.prefix(cap)) { video in
+                    Button {
+                        viewModel.toggleSelection(for: video.id)
+                    } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(video.creationDate, format: Date.FormatStyle(date: .numeric, time: .shortened))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.primary)
+                                Text("Duration: \(durationFormatter.string(from: video.duration) ?? "--")  Resolution: \(video.resolutionText)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if viewModel.selectedVideoIDs.contains(video.id) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.tint)
+                            } else {
+                                Image(systemName: "circle")
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if viewModel.videos.count > cap {
+                    Text("Showing first \(cap) items. (Paging/filter will be added next.)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+
+    private var migrationSection: some View {
+        Section("Migration (Copy to External Folder)") {
+            LabeledContent("Selected Videos", value: "\(viewModel.selectedVideoIDs.count)")
+
+            Button {
+                viewModel.startMigration()
+            } label: {
+                if viewModel.isMigrating {
+                    HStack {
+                        ProgressView()
+                        Text("Migrating...")
+                    }
+                } else {
+                    Text("Start Migration")
+                }
+            }
+            .disabled(
+                viewModel.isMigrating ||
+                viewModel.selectedVideoIDs.isEmpty ||
+                viewModel.selectedFolderURL == nil ||
+                !viewModel.isFolderWritable
+            )
+
+            if let progress = viewModel.migrationProgress {
+                if progress.isIndeterminate {
+                    ProgressView()
+                } else {
+                    ProgressView(value: progress.fraction)
+                }
+
+                HStack {
+                    Text("Progress")
+                    Spacer()
+                    Text("\(progress.completed)/\(progress.total)")
+                        .foregroundStyle(.secondary)
+                }
+
+                if let name = progress.currentFilename {
+                    Text(name)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+
+            Text("Note: this version copies selected videos to the external folder. Deleting originals will be added next.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 }

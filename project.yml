@@ -22,6 +22,12 @@ targets:
       - path: ClipDock/Resources
     info:
       path: ClipDock/Info.plist
+      properties:
+        CFBundleDisplayName: ClipDock
+        LSRequiresIPhoneOS: true
+        NSPhotoLibraryUsageDescription: ClipDock needs access to scan and export videos from your photo library.
+        NSPhotoLibraryAddUsageDescription: ClipDock needs permission to delete migrated videos from your photo library.
+        UILaunchScreen: {}
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.wenfeng.clipdock

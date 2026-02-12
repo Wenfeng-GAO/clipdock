@@ -181,3 +181,25 @@
    - 补齐 `/Users/wenfeng/Documents/iphoneapp/ClipDock/Info.plist` 中 Photos 相关用途说明 key（以及必要的基础字段）。
 4. 验证方法：
    - `xcodebuild ...` 重新编译后，从产物 `ClipDock.app/Info.plist` 确认 key 存在；真机再次点击 `Grant Access` 不再闪退并能弹出系统权限框。
+
+#### 2026-02-12 - 重新运行 xcodegen 后隐私说明丢失：Info.plist 被生成器覆盖
+1. 现象：
+   - 运行 `xcodegen generate` 后，`ClipDock/Info.plist` 变回最小内容，导致 Photos 权限说明 key 丢失，存在闪退风险回归。
+2. 根因：
+   - `project.yml` 使用 `targets.ClipDock.info.path`，xcodegen 会在生成过程中覆盖该路径的 plist 内容。
+3. 解决方案：
+   - 将隐私说明等关键键值固化到 `project.yml` 的 `targets.ClipDock.info.properties`，由生成器持续写入，避免手工编辑丢失。
+4. 验证方法：
+   - `xcodegen generate` 后用 `plutil -p ClipDock/Info.plist` 确认 `NSPhotoLibraryUsageDescription` 等 key 存在；真机点击 `Grant Access` 不闪退。
+
+#### 2026-02-12 - M4/M5：手动选择 + 最小迁移（复制到外接目录）
+1. 现象：
+   - 需要在扫描列表中手动选择视频，并将选中视频复制到外接目录，展示进度。
+2. 根因：
+   - 这是 MVP 主链路中的核心能力，需要在 UI、状态管理、导出写入之间打通闭环。
+3. 解决方案：
+   - `M4`：在 `HomeViewModel` 引入 `selectedVideoIDs`，支持多选/全选/清空与选中计数；列表行显示勾选状态。
+   - `M5`：新增 `VideoMigrationService`，使用 `PHAssetResourceManager` 将选中视频资源写入目标目录，提供迁移进度回调；目前只做“复制+最小校验”，删除源视频留到下一步。
+4. 验证方法：
+   - 编译验证：`xcodebuild -project ClipDock.xcodeproj -scheme ClipDock -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`。
+   - 真机验证（需要外接存储）：选中 1-2 个视频，点击 `Start Migration`，在外接目录可见导出的文件且大小 > 0。
