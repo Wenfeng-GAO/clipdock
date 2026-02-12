@@ -126,8 +126,10 @@ MVP 冲刺周期：3 天（连续开发 + 每模块闭环验证）。
 2. 真机点击 `Grant Access` 闪退：打包 `Info.plist` 缺少 Photos 权限用途说明 key，已补齐 `NSPhotoLibraryUsageDescription` / `NSPhotoLibraryAddUsageDescription`。
 
 证据（截图）：
-1. 待补：ClipDock 首页截图（权限状态、外接目录、视频扫描结果）。
-   - 计划路径：`docs/assets/clipdock-progress-2026-02-12.png`
+1. 已获取（待落盘）：Photos 权限弹窗截图（点击 `Grant Access` 后出现的系统授权弹窗）。
+   - 目标路径：`docs/assets/clipdock-progress-2026-02-12.png`
+   - 引用（文件落盘后可在 Markdown 中显示）：
+     - ![ClipDock Progress 2026-02-12](assets/clipdock-progress-2026-02-12.png)
 
 下一步（Day 1 余量 / Day 2）：
 1. `M4 手动选择模块`：多选/全选/统计
