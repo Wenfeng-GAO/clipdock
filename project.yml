@@ -35,7 +35,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.wenfeng.clipdock
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"
 
   ClipDockTests:
     type: bundle.unit-test
