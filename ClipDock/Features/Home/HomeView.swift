@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
@@ -7,6 +6,7 @@ struct HomeView: View {
     @State private var isShowingMonthPicker = false
     @State private var isShowingTopNPicker = false
     @State private var isShowingFailures = false
+    @State private var isShowingAbout = false
 
     private let durationFormatter: DateComponentsFormatter = {
         let formatter = DateComponentsFormatter()
@@ -24,18 +24,37 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                aboutSection
-                permissionsSection
-                externalStorageSection
-                videoScanSection
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
 
-                if !viewModel.videos.isEmpty {
-                    selectionSection
-                    videoListSection
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        permissionsCard
+                        externalStorageCard
+                        scanCard
+
+                        if !viewModel.videos.isEmpty {
+                            selectionCard
+                            videosCard
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 20)
                 }
             }
             .navigationTitle("ClipDock")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isShowingAbout = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
+                    .accessibilityLabel(L10n.tr("About"))
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 if !viewModel.videos.isEmpty {
                     MigrationActionBar(viewModel: viewModel, isShowingFailures: $isShowingFailures)
@@ -78,6 +97,9 @@ struct HomeView: View {
                     isShowingFailures = false
                 }
             }
+            .sheet(isPresented: $isShowingAbout) {
+                aboutSheet
+            }
             .alert(
                 L10n.tr("Notice"),
                 isPresented: Binding(
@@ -115,78 +137,137 @@ struct HomeView: View {
         }
     }
 
-    private var aboutSection: some View {
-        Section(L10n.tr("About")) {
-            LabeledContent(L10n.tr("App Version"), value: appVersionText)
-
-            Link(
-                L10n.tr("Privacy Policy"),
-                destination: URL(string: "https://wenfeng-gao.github.io/clipdock/app-store/privacy-policy.html")!
-            )
-            Link(
-                L10n.tr("Support"),
-                destination: URL(string: "https://wenfeng-gao.github.io/clipdock/app-store/support.html")!
-            )
+    private var aboutSheet: some View {
+        NavigationStack {
+            List {
+                Section {
+                    LabeledContent(L10n.tr("App Version"), value: appVersionText)
+                }
+                Section {
+                    Link(
+                        L10n.tr("Privacy Policy"),
+                        destination: URL(string: "https://wenfeng-gao.github.io/clipdock/app-store/privacy-policy.html")!
+                    )
+                    Link(
+                        L10n.tr("Support"),
+                        destination: URL(string: "https://wenfeng-gao.github.io/clipdock/app-store/support.html")!
+                    )
+                }
+            }
+            .navigationTitle(L10n.tr("About"))
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L10n.tr("Done")) {
+                        isShowingAbout = false
+                    }
+                }
+            }
         }
     }
 
-    private var permissionsSection: some View {
-        Section("Photos Permission") {
-            LabeledContent("Status", value: viewModel.permissionState.displayText)
-            Button("Grant Access") {
-                viewModel.requestPhotoAccess()
+    private var permissionsCard: some View {
+        HomeCard(title: L10n.tr("Photos Permission"), systemImage: "photo.on.rectangle") {
+            HStack(alignment: .firstTextBaseline) {
+                Text(L10n.tr("Status"))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                Text(viewModel.permissionState.displayText)
+                    .font(.callout)
+                    .foregroundStyle(viewModel.permissionState.canReadLibrary ? .primary : .secondary)
             }
+
+            Button {
+                viewModel.requestPhotoAccess()
+            } label: {
+                Text(L10n.tr("Grant Access"))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
             .disabled(viewModel.permissionState.canReadLibrary)
         }
     }
 
-    private var externalStorageSection: some View {
-        Section("External Storage") {
-            LabeledContent("Selected Folder") {
-                if let selectedFolderURL = viewModel.selectedFolderURL {
-                    Text(selectedFolderURL.path)
-                        .font(.footnote)
-                        .multilineTextAlignment(.trailing)
-                } else {
-                    Text("Not Selected")
+    private var externalStorageCard: some View {
+        HomeCard(title: L10n.tr("External Storage"), systemImage: "externaldrive") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    Text(L10n.tr("Selected Folder"))
                         .foregroundStyle(.secondary)
+                    Spacer(minLength: 12)
+                    if let url = viewModel.selectedFolderURL {
+                        Text(url.path)
+                            .font(.footnote)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(3)
+                            .textSelection(.enabled)
+                    } else {
+                        Text(L10n.tr("Not Selected"))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack {
+                    Text(L10n.tr("Writable"))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 12)
+                    Text(verbatim: viewModel.isFolderWritable ? L10n.tr("Yes") : L10n.tr("No"))
+                        .foregroundStyle(viewModel.isFolderWritable ? .primary : .secondary)
                 }
             }
 
-            LabeledContent("Writable") {
-                Text(verbatim: viewModel.isFolderWritable ? L10n.tr("Yes") : L10n.tr("No"))
-            }
+            HStack(spacing: 12) {
+                Button {
+                    isShowingFolderPicker = true
+                } label: {
+                    Text(L10n.tr("Choose External Folder"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
 
-            Button("Choose External Folder") {
-                isShowingFolderPicker = true
+                Button {
+                    viewModel.rescanFolderAccess()
+                } label: {
+                    Text(L10n.tr("Recheck Folder Access"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.secondary)
+                .disabled(viewModel.selectedFolderURL == nil)
             }
-
-            Button("Recheck Folder Access") {
-                viewModel.rescanFolderAccess()
-            }
-            .disabled(viewModel.selectedFolderURL == nil)
         }
     }
 
-    private var videoScanSection: some View {
-        Section("Video Scan") {
-            Button {
-                viewModel.scanVideos()
-            } label: {
-                if viewModel.isScanningVideos {
-                    HStack {
-                        ProgressView()
-                        Text("Scanning...")
+    private var scanCard: some View {
+        HomeCard(title: L10n.tr("Video Scan"), systemImage: "magnifyingglass") {
+            HStack(spacing: 12) {
+                Button {
+                    viewModel.scanVideos()
+                } label: {
+                    if viewModel.isScanningVideos {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text(L10n.tr("Scanning..."))
+                        }
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        Text(L10n.tr("Scan Videos"))
+                            .frame(maxWidth: .infinity)
                     }
-                } else {
-                    Text("Scan Videos")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.isScanningVideos || !viewModel.permissionState.canReadLibrary)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(L10n.tr("Video Count"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text("\(viewModel.videos.count)")
+                        .font(.system(.title3, design: .rounded).weight(.semibold))
+                        .monospacedDigit()
                 }
             }
-            .disabled(viewModel.isScanningVideos || !viewModel.permissionState.canReadLibrary)
 
-            LabeledContent("Video Count", value: "\(viewModel.videos.count)")
-
-            Picker("Sort", selection: $viewModel.sortMode) {
+            Picker(L10n.tr("Sort"), selection: $viewModel.sortMode) {
                 ForEach(VideoSortMode.allCases) { mode in
                     Text(mode.displayText).tag(mode)
                 }
@@ -197,7 +278,7 @@ struct HomeView: View {
             if viewModel.isFetchingVideoSizes {
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text("Loading video sizes...")
+                    Text(L10n.tr("Loading video sizes..."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -205,41 +286,56 @@ struct HomeView: View {
         }
     }
 
-    private var selectionSection: some View {
-        Section("Select Videos") {
-            HStack {
-                Text("Selected")
-                Spacer()
-                Text("\(viewModel.selectedVideoIDs.count)")
+    private var selectionCard: some View {
+        HomeCard(title: L10n.tr("Select Videos"), systemImage: "checkmark.circle") {
+            HStack(alignment: .firstTextBaseline) {
+                Text(L10n.tr("Selected"))
                     .foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                Text("\(viewModel.selectedVideoIDs.count)")
+                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .monospacedDigit()
             }
 
-            Text("Tip: tap a row to toggle selection.")
+            Text(L10n.tr("Tip: tap a row to toggle selection."))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
-                Button("By Month...") {
+                Button {
                     isShowingMonthPicker = true
+                } label: {
+                    Label(L10n.tr("By Month..."), systemImage: "calendar")
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
 
-                Button("Top N...") {
+                Button {
                     isShowingTopNPicker = true
+                } label: {
+                    Label(L10n.tr("Top N..."), systemImage: "arrow.up.right.circle")
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
             }
 
-            Toggle("Show Selected Only", isOn: $viewModel.showSelectedOnly)
+            Toggle(L10n.tr("Show Selected Only"), isOn: $viewModel.showSelectedOnly)
 
             HStack(spacing: 12) {
-                Button("Select All") {
+                Button {
                     viewModel.selectAllScannedVideos()
+                } label: {
+                    Text(L10n.tr("Select All"))
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
 
-                Button("Clear") {
+                Button {
                     viewModel.clearSelection()
+                } label: {
+                    Text(L10n.tr("Clear"))
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .tint(.secondary)
@@ -248,63 +344,71 @@ struct HomeView: View {
         }
     }
 
-    private var videoListSection: some View {
-        Section("Video List") {
-            // Render a capped list for now to avoid heavy UI work on very large libraries.
-            // We'll add paging/filtering next.
+    private var videosCard: some View {
+        HomeCard(title: L10n.tr("Video List"), systemImage: "film") {
             let displayed = viewModel.displayedVideos
-            ForEach(displayed) { video in
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(video.creationDate, format: Date.FormatStyle(date: .numeric, time: .shortened))
-                            .font(.subheadline)
-                            .foregroundStyle(.primary)
-                        Text(
-                            verbatim: "\(L10n.tr("Duration")): \(durationFormatter.string(from: video.duration) ?? "--")  \(L10n.tr("Resolution")): \(video.resolutionText)"
-                        )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(verbatim: "\(L10n.tr("Size")): \(viewModel.formattedSizeText(for: video.id))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+
+            LazyVStack(spacing: 0) {
+                ForEach(displayed) { video in
+                    Button {
+                        viewModel.toggleSelection(for: video.id)
+                    } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(video.creationDate, format: Date.FormatStyle(date: .numeric, time: .shortened))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.primary)
+
+                                Text(
+                                    verbatim: "\(L10n.tr("Duration")): \(durationFormatter.string(from: video.duration) ?? "--")  \(L10n.tr("Resolution")): \(video.resolutionText)"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                                Text(verbatim: "\(L10n.tr("Size")): \(viewModel.formattedSizeText(for: video.id))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer(minLength: 8)
+
+                            Image(systemName: viewModel.selectedVideoIDs.contains(video.id) ? "checkmark.circle.fill" : "circle")
+                                .font(.system(.title3, design: .rounded))
+                                .foregroundStyle(viewModel.selectedVideoIDs.contains(video.id) ? Color.accentColor : Color(uiColor: .tertiaryLabel))
+                        }
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
                     }
-                    Spacer()
-                    if viewModel.selectedVideoIDs.contains(video.id) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.tint)
-                    } else {
-                        Image(systemName: "circle")
-                            .foregroundStyle(.tertiary)
+                    .buttonStyle(.plain)
+                    .task {
+                        viewModel.ensureSizeLoaded(for: video.id)
                     }
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    viewModel.toggleSelection(for: video.id)
-                }
-                .task {
-                    viewModel.ensureSizeLoaded(for: video.id)
+
+                    if video.id != displayed.last?.id {
+                        Divider()
+                            .opacity(0.65)
+                    }
                 }
             }
 
             if viewModel.hasMoreVideosToShow {
-                Button("Load More") {
-                    viewModel.loadMoreVideos()
-                }
-                .buttonStyle(.bordered)
+                VStack(alignment: .leading, spacing: 10) {
+                    Button {
+                        viewModel.loadMoreVideos()
+                    } label: {
+                        Text(L10n.tr("Load More"))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
 
-                Text(
-                    verbatim: L10n.tr(
-                        "Showing %d items.",
-                        displayed.count
-                    )
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                    Text(verbatim: L10n.tr("Showing %d items.", displayed.count))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 10)
             }
         }
     }
-
-    // Migration actions moved to a bottom action bar for a cleaner single-flow page.
 }
 
 #Preview {

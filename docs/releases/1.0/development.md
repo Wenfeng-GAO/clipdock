@@ -144,3 +144,15 @@
 3. 验证：
    - `xcodebuild build`（iOS）通过。
    - `xcodebuild test`（Simulator）：16 tests / 0 failure。
+
+### 2026-02-13 - Home UI 重构：卡片式单页 + 自定义列表
+1. 背景：原首页使用 `List + Section`，整体更像“设置页”，信息密度高且不符合“干净克制”的方向。
+2. 交付：
+   - 首页改为 `ScrollView + HomeCard` 的卡片式布局：权限 / 外接目录 / 扫描 / 选择 / 列表，从上到下按流程排列。
+   - `About` 改为右上角 `info` 按钮打开 sheet，减少主页面干扰。
+   - 视频列表改为自定义 `LazyVStack`，仍支持“点选切换选择 + 异步补齐 size + Load More”。
+3. 关键文件：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeView.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/Components/HomeCard.swift`
+4. 验证：
+   - `xcodebuild test`（Simulator）：16 tests / 0 failure。
