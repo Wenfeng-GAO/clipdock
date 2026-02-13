@@ -117,3 +117,30 @@
 4. iCloud-only：size 显示 `--`、迁移时的提示与失败可见性
 5. 目标目录：外接盘与“On My iPhone”目录都可用（方便 App Review 复现）
 
+---
+
+## 开发记录（1.0）
+
+### 2026-02-13 - 规则选择（按月份 / Top-N）+ 去除 History 入口
+1. 交付：
+   - 新增规则选择服务 `SelectionRulesService`（按月份分组 + Top-N 选择）。
+   - UI 增加 `By Month...` / `Top N...` 弹层入口。
+   - 移除 `History` 相关 UI 入口（按 1.0 形态要求）。
+2. 关键文件：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Services/Selection/SelectionRulesService.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/RulePickers/MonthPickerView.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/RulePickers/TopNPickerView.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeViewModel.swift`
+3. 验证：
+   - `xcodebuild test`（Simulator）：新增 `SelectionRulesServiceTests`，总计 16 tests / 0 failure。
+
+### 2026-02-13 - UI 收敛：迁移操作改为底部 Action Bar
+1. 交付：
+   - 将迁移/删除/结果摘要从列表 Section 移至底部 `safeAreaInset` Action Bar，减少页面信息密度。
+   - 失败详情改为单独 sheet（可复制错误信息）。
+2. 关键文件：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/MigrationActionBar.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeView.swift`
+3. 验证：
+   - `xcodebuild build`（iOS）通过。
+   - `xcodebuild test`（Simulator）：16 tests / 0 failure。
