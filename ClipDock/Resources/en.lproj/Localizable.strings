@@ -71,6 +71,9 @@
 "Succeeded" = "Succeeded";
 "Failed" = "Failed";
 "Failures" = "Failures";
+"View Failures" = "View Failures";
+"No failures." = "No failures.";
+"Delete Originals" = "Delete Originals";
 "Copy Error" = "Copy Error";
 "Copied." = "Copied.";
 "Showing first %d failures. See History for full details." = "Showing first %d failures. See History for full details.";

@@ -71,6 +71,9 @@
 "Succeeded" = "成功";
 "Failed" = "失败";
 "Failures" = "失败列表";
+"View Failures" = "查看失败列表";
+"No failures." = "没有失败记录。";
+"Delete Originals" = "删除原视频";
 "Copy Error" = "复制错误信息";
 "Copied." = "已复制。";
 "Showing first %d failures. See History for full details." = "仅显示前 %d 条失败记录，完整信息请到“历史”查看。";

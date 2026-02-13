@@ -6,6 +6,7 @@ struct HomeView: View {
     @State private var isShowingFolderPicker = false
     @State private var isShowingMonthPicker = false
     @State private var isShowingTopNPicker = false
+    @State private var isShowingFailures = false
 
     private let durationFormatter: DateComponentsFormatter = {
         let formatter = DateComponentsFormatter()
@@ -31,12 +32,15 @@ struct HomeView: View {
 
                 if !viewModel.videos.isEmpty {
                     selectionSection
-                    migrationSection
-                    postMigrationSection
                     videoListSection
                 }
             }
             .navigationTitle("ClipDock")
+            .safeAreaInset(edge: .bottom) {
+                if !viewModel.videos.isEmpty {
+                    MigrationActionBar(viewModel: viewModel, isShowingFailures: $isShowingFailures)
+                }
+            }
             .sheet(isPresented: $isShowingFolderPicker) {
                 FolderPickerView {
                     viewModel.setSelectedFolder($0)
@@ -68,6 +72,11 @@ struct HomeView: View {
                         isShowingTopNPicker = false
                     }
                 )
+            }
+            .sheet(isPresented: $isShowingFailures) {
+                MigrationFailuresView(failures: viewModel.lastMigrationResult?.failures ?? []) {
+                    isShowingFailures = false
+                }
             }
             .alert(
                 L10n.tr("Notice"),
@@ -295,120 +304,7 @@ struct HomeView: View {
         }
     }
 
-    private var migrationSection: some View {
-        Section("Migration (Copy to External Folder)") {
-            LabeledContent("Selected Videos", value: "\(viewModel.selectedVideoIDs.count)")
-
-            Button {
-                viewModel.startMigration()
-            } label: {
-                if viewModel.isMigrating {
-                    HStack {
-                        ProgressView()
-                        Text("Migrating...")
-                    }
-                } else {
-                    Text("Start Migration")
-                }
-            }
-            .disabled(
-                viewModel.isMigrating ||
-                viewModel.selectedVideoIDs.isEmpty ||
-                viewModel.selectedFolderURL == nil ||
-                !viewModel.isFolderWritable
-            )
-
-            if let progress = viewModel.migrationProgress {
-                if progress.isIndeterminate {
-                    ProgressView()
-                } else {
-                    ProgressView(value: progress.fraction)
-                }
-
-                HStack {
-                    Text("Progress")
-                    Spacer()
-                    Text("\(progress.completed)/\(progress.total)")
-                        .foregroundStyle(.secondary)
-                }
-
-                if let name = progress.currentFilename {
-                    Text(name)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-
-            Text("Note: this version copies selected videos to the external folder. Use Post-Migration to delete originals.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var postMigrationSection: some View {
-        Section("Post-Migration") {
-            if let result = viewModel.lastMigrationResult {
-                LabeledContent("Succeeded", value: "\(result.successCount)")
-                LabeledContent("Failed", value: "\(result.failureCount)")
-
-                if result.failureCount > 0 {
-                    DisclosureGroup("Failures") {
-                        let maxItems = min(result.failures.count, 20)
-                        ForEach(result.failures.prefix(maxItems), id: \.self) { item in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(item.assetID)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                Text(item.message)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(6)
-                                Button("Copy Error") {
-                                    UIPasteboard.general.string = "\(item.assetID)\n\(item.message)"
-                                    viewModel.alertMessage = L10n.tr("Copied.")
-                                }
-                                .font(.caption)
-                            }
-                        }
-
-                        if result.failures.count > maxItems {
-                            Text(verbatim: L10n.tr("Showing first %d failures. See History for full details.", maxItems))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Text("Only succeeded items can be deleted.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-            } else {
-                Text("Run a migration to see results here.")
-                    .foregroundStyle(.secondary)
-            }
-
-            Button {
-                viewModel.promptDeleteMigratedOriginals()
-            } label: {
-                if viewModel.isDeleting {
-                    HStack {
-                        ProgressView()
-                        Text("Deleting...")
-                    }
-                } else {
-                    Text("Delete Migrated Originals")
-                }
-            }
-            .disabled(viewModel.deletableSuccessCount == 0 || viewModel.isDeleting || viewModel.isMigrating)
-
-            Text("Only deletes videos that passed export + validation in the last run.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-    }
+    // Migration actions moved to a bottom action bar for a cleaner single-flow page.
 }
 
 #Preview {
