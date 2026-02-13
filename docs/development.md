@@ -356,7 +356,7 @@
 1. 真机测试通过：流程稳定、功能正常（MVP 最终截图已归档，见项目进度文档）。
 
 ### 已知技术债 / 风险（明确记录）
-1. 视频大小读取当前用 `PHAssetResource` 的 KVC 读取 `fileSize`，不是公开 API 合约，未来 iOS 版本可能失效或不适合上架场景。
+1. 视频大小显示为 best-effort：使用 public API 读取本地文件大小，不触发 iCloud 下载；iCloud-only 资产可能显示 `--`，且按大小排序会将未知项放到底部。
 2. 外接盘行为在不同文件提供者/盘体上可能存在差异，当前方案优先确保“可用 + 错误可见 + 可重试”。
 
 ### Release 准备清单（完成情况）
@@ -364,3 +364,110 @@
 2. 工程生成：不追踪 `ClipDock.xcodeproj/`，用 `xcodegen generate` 生成。
 3. 文档：PRD/Dev Log/Project Plan 已齐备，且记录关键问题与解决方案。
 4. Beta/Preview：已创建 GitHub Release `v0.2.6-beta.1`（tag + release notes）。
+
+---
+
+## 1.0 开发文档（上架版准备）
+
+本节用于落实 1.0 的 UI 形态、实现方式与测试范围。产品决策来源：`/Users/wenfeng/Documents/iphoneapp/docs/prd-1.0.md`。
+
+### 1.0 范围与约束（已确认）
+1. 单页形态，不新增 Tab，不提供 `History` 页面，不提供 `Settings` 页面。
+2. 目标目录结构：平铺（不自动创建 YYYY-MM 子目录）。
+3. 批量选择规则：按月份、最大 N。
+4. 迁移策略：更稳（串行）。
+5. 视觉方向：干净克制。
+
+### UI 设计（SwiftUI）
+
+#### 目标
+1. 降低信息密度：把“目录/扫描/选择/迁移/删除”按流程从上到下排列，用户一眼知道下一步。
+2. 大库可用：列表虚拟化、分页加载、异步 size 补齐不干扰操作。
+3. 删除更克制：删除入口在迁移完成后出现，且仅在满足权限与校验条件时可用。
+
+#### 页面结构（单页）
+建议从现有 `List + 多 Section` 调整为“顶部状态卡 + 列表 + 底部操作区”的结构：
+1. 顶部状态卡（2 张卡片）
+   - 目录卡：已选目录、可写状态、`Choose` / `Recheck` 按钮
+   - 权限卡：相册权限状态、`Grant` 按钮
+2. 扫描与排序卡
+   - `Scan Videos` CTA
+   - 排序 `Date/Size`（保持 segmented）
+   - `Loading sizes...` 次级提示
+3. 选择卡
+   - 手动选择提示 + 统计（已选数量）
+   - 规则选择入口：
+     - `By Month...`（弹层 Month Picker）
+     - `Top N...`（弹层 N 输入 + 应用）
+   - `Show selected only`、`Select all`、`Clear`
+4. 列表（虚拟化）
+   - 仅负责展示与勾选，不承载迁移/删除按钮
+5. 底部操作区（sticky）
+   - Primary：`Start Migration`
+   - Secondary：`Delete Migrated Originals`（仅在迁移完成且 deletable>0 时可用）
+   - Progress：进度条 + 当前文件名（迁移中）
+   - 结果摘要：成功/失败数（迁移后）
+
+#### 弹层 A：按月份选择（Month Picker）
+1. 数据来源：扫描完成后按 `creationDate` 生成 `YYYY-MM` 分组。
+2. 展示：月份列表（YYYY-MM）+ 视频数量；支持多选月份。
+3. 动作：`Apply` 将所选月份的全部视频加入选中集合；`Clear` 清空月份选择。
+
+#### 弹层 B：最大 N（Top-N Picker）
+1. 输入：N（快捷按钮 20/50/100 + 自定义输入）。
+2. 规则：对“当前排序结果”取前 N（如果启用“仅看已选”，则对过滤后的列表取前 N）。
+3. 说明：当排序为 `Size` 时，未知 size 的视频排在底部，Top-N 默认只会命中已知 size 的条目。
+
+### 后端实现方式（ViewModel + Services）
+
+#### 总体策略
+1. 保持 `SwiftUI + MVVM`，继续由 `HomeViewModel`（后续可重命名为 `MigrateViewModel`）编排流程。
+2. 迁移继续串行执行，失败条目支持重试（复用现有迁移结果结构）。
+3. 1.0 不对外暴露历史页面；迁移“结果摘要”只保留最近一次运行（内存态即可）。
+
+#### 数据结构（建议新增）
+1. `MonthKey`（Value Object）
+   - `year: Int`、`month: Int`、`display: String`（如 `2026-02`）
+2. `MonthSummary`
+   - `key: MonthKey`
+   - `count: Int`
+   - `assetIDs: [String]`（可延迟加载，仅在 Apply 时取）
+
+#### 选择规则实现（建议新增 Service）
+新增 `SelectionRulesService`（纯逻辑，可单测）：
+1. `groupByMonth(videos) -> [MonthKey: [VideoAssetSummary]]`
+2. `selectByMonths(keys, monthIndex) -> Set<assetID>`
+3. `selectTopN(n, candidates) -> Set<assetID>`（candidates 为当前排序后的数组）
+
+#### size 获取与 Top-N 的边界
+1. size 读取使用 public API，且 `isNetworkAccessAllowed=false`，不会触发 iCloud 下载。
+2. Top-N 选择与大小排序不强制要求 size 全量完成；未知 size 统一视为“排序靠后”，并在 UI 里显示 `--`。
+
+#### 迁移与删除
+1. 迁移：继续使用“导出到临时目录 -> `NSFileCoordinator` 写入目标目录”的流程，持有 security scope 覆盖整个迁移。
+2. 删除：仅允许删除最近一次运行中“迁移+校验成功”的条目；且要求 Photos 权限为 `.authorized`（完全访问）。
+
+### 测试与验证范围（1.0）
+
+#### 自动化（单元测试）
+新增/扩展测试目标：`ClipDockTests`
+1. 选择规则
+   - 按月份分组正确性（跨年、无 creationDate 的兜底、月排序）
+   - 多月选择 union 行为正确（不丢不重）
+   - Top-N：在不同排序模式下取前 N 的确定性
+2. 大库边界
+   - 5k 视频下 groupByMonth 时间/内存可接受（逻辑层）
+3. 安全闸门
+   - 无目录/不可写/无选择不允许迁移
+   - 非完全访问不允许删除
+
+回归命令（避免 DerivedData 锁冲突）：
+1. `xcodegen generate`
+2. `DERIVED=$(mktemp -d /tmp/ClipDockDerivedDataTest.XXXXXX) && xcodebuild ... -derivedDataPath \"$DERIVED\" test`
+
+#### 手工验证（真机）
+1. 基础闭环：选择目录 -> 扫描 -> 规则选择（月份/Top-N）-> 迁移 -> 删除
+2. 权限流：限制访问/拒绝/完全访问切换
+3. 外设：拔盘、重插、目录权限失效与恢复
+4. iCloud-only：size 显示 `--`、迁移时的提示与失败可见性
+5. 目标目录：外接盘与“On My iPhone”目录都可用（方便 App Review 复现）
