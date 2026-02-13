@@ -33,11 +33,22 @@
 "Video Count" = "视频数量";
 "Sort" = "排序";
 "Loading video sizes..." = "正在加载视频大小...";
+"Unknown" = "未知";
 
 "Select Videos" = "选择视频";
 "Selected" = "已选择";
 "Tip: tap a row to toggle selection." = "提示：点击列表项可切换选择。";
 "Show Selected Only" = "仅显示已选择";
+"By Month..." = "按月份选择...";
+"Top N..." = "选择最大N...";
+"Apply" = "应用";
+"Done" = "完成";
+"Select by Month" = "按月份选择";
+"Select Top N" = "选择最大N";
+"Top N" = "最大N";
+"Selected %d item(s). Some videos may not have a local size available (iCloud-only)." = "已选择 %d 个视频。部分视频可能因未下载到本地（仅在 iCloud）而无法获取大小。";
+"Known sizes: %d/%d" = "已获取大小：%d/%d";
+"Tip: Top-N selects the largest locally-sized videos. iCloud-only videos may be skipped." = "提示：最大N会选择本地已获取大小的视频（按大小从大到小）。仅在 iCloud 的视频可能会被跳过。";
 "Select All" = "全选";
 "Clear" = "清空";
 

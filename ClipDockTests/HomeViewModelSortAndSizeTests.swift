@@ -27,8 +27,7 @@ final class HomeViewModelSortAndSizeTests: XCTestCase {
                 externalStorageService: MockExternalStorageService(),
                 videoLibraryService: videoLibrary,
                 videoMigrationService: MockVideoMigrationService(),
-                photoDeletionService: MockPhotoDeletionService(),
-                historyStore: MockHistoryStore()
+                photoDeletionService: MockPhotoDeletionService()
             )
         }
 
@@ -68,8 +67,7 @@ final class HomeViewModelSortAndSizeTests: XCTestCase {
                 externalStorageService: MockExternalStorageService(),
                 videoLibraryService: videoLibrary,
                 videoMigrationService: MockVideoMigrationService(),
-                photoDeletionService: MockPhotoDeletionService(),
-                historyStore: MockHistoryStore()
+                photoDeletionService: MockPhotoDeletionService()
             )
         }
 
@@ -106,8 +104,7 @@ final class HomeViewModelSortAndSizeTests: XCTestCase {
                 externalStorageService: MockExternalStorageService(),
                 videoLibraryService: videoLibrary,
                 videoMigrationService: MockVideoMigrationService(),
-                photoDeletionService: MockPhotoDeletionService(),
-                historyStore: MockHistoryStore()
+                photoDeletionService: MockPhotoDeletionService()
             )
         }
 
@@ -138,8 +135,7 @@ final class HomeViewModelSortAndSizeTests: XCTestCase {
                 externalStorageService: MockExternalStorageService(),
                 videoLibraryService: videoLibrary,
                 videoMigrationService: MockVideoMigrationService(),
-                photoDeletionService: MockPhotoDeletionService(),
-                historyStore: MockHistoryStore()
+                photoDeletionService: MockPhotoDeletionService()
             )
         }
 

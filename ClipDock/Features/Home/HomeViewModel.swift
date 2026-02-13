@@ -36,6 +36,10 @@ final class HomeViewModel: ObservableObject {
     }
     @Published private(set) var videoSizeBytesByID: [String: Int64] = [:]
     @Published private(set) var isFetchingVideoSizes = false
+    @Published private(set) var isFetchingAllVideoSizes = false
+
+    // 1.0 rule selection
+    @Published private(set) var monthSummaries: [MonthSummary] = []
 
     // List rendering controls (M10)
     @Published var listVisibleLimit: Int = 200
@@ -60,7 +64,7 @@ final class HomeViewModel: ObservableObject {
     @Published var isShowingDeleteConfirm = false
 
     // M8: history
-    @Published var migrationHistory: [MigrationHistoryRecord] = []
+    // 1.0: no History UI (keep only last-run result in-memory).
 
     private(set) var hasLoadedInitialData = false
 
@@ -69,9 +73,10 @@ final class HomeViewModel: ObservableObject {
     private let videoLibraryService: VideoLibraryServicing
     private let videoMigrationService: VideoMigrating
     private let photoDeletionService: PhotoDeleting
-    private let historyStore: MigrationHistoryStoring
+    private let selectionRulesService: SelectionRulesServicing
 
     private var inFlightSizeAssetIDs: Set<String> = []
+    private var monthIndex: [MonthKey: [String]] = [:]
 
     init(
         photoPermissionService: PhotoPermissionServicing = PhotoPermissionService(),
@@ -79,14 +84,14 @@ final class HomeViewModel: ObservableObject {
         videoLibraryService: VideoLibraryServicing = VideoLibraryService(),
         videoMigrationService: VideoMigrating = VideoMigrationService(),
         photoDeletionService: PhotoDeleting = PhotoDeletionService(),
-        historyStore: MigrationHistoryStoring = MigrationHistoryStore()
+        selectionRulesService: SelectionRulesServicing = SelectionRulesService()
     ) {
         self.photoPermissionService = photoPermissionService
         self.externalStorageService = externalStorageService
         self.videoLibraryService = videoLibraryService
         self.videoMigrationService = videoMigrationService
         self.photoDeletionService = photoDeletionService
-        self.historyStore = historyStore
+        self.selectionRulesService = selectionRulesService
     }
 
     func loadInitialDataIfNeeded() {
@@ -95,7 +100,6 @@ final class HomeViewModel: ObservableObject {
 
         permissionState = photoPermissionService.currentStatus()
         loadSavedFolderIfExists()
-        loadHistory()
     }
 
     func requestPhotoAccess() {
@@ -142,11 +146,14 @@ final class HomeViewModel: ObservableObject {
         lastMigrationResult = nil
         videoSizeBytesByID = [:]
         inFlightSizeAssetIDs = []
+        monthSummaries = []
+        monthIndex = [:]
         Task {
             let fetchedVideos = await videoLibraryService.fetchVideosSortedByDate(limit: nil)
             videos = fetchedVideos
             applySort()
             isScanningVideos = false
+            rebuildMonthIndex()
 
             // Preload sizes for the first page so the list can display sizes immediately.
             prefetchSizesForVisibleRangeIfNeeded()
@@ -221,6 +228,57 @@ final class HomeViewModel: ObservableObject {
 
             if sortMode != .dateDesc {
                 applySort()
+            }
+        }
+    }
+
+    private func prefetchSizesForAllScannedVideosIfNeeded() async {
+        guard permissionState.canReadLibrary else { return }
+        let allIDs = videos.map(\.id)
+        let missing = allIDs.filter { videoSizeBytesByID[$0] == nil && !inFlightSizeAssetIDs.contains($0) }
+        guard !missing.isEmpty else { return }
+
+        isFetchingAllVideoSizes = true
+        missing.forEach { inFlightSizeAssetIDs.insert($0) }
+        let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: missing)
+        for (id, bytes) in sizes {
+            videoSizeBytesByID[id] = bytes
+        }
+        missing.forEach { inFlightSizeAssetIDs.remove($0) }
+        isFetchingAllVideoSizes = false
+
+        if sortMode != .dateDesc {
+            applySort()
+        }
+    }
+
+    private func rebuildMonthIndex() {
+        monthIndex = selectionRulesService.buildMonthIndex(videos: videos)
+        monthSummaries = selectionRulesService.monthSummaries(from: monthIndex)
+    }
+
+    func applyMonthSelection(_ months: Set<MonthKey>) {
+        let ids = selectionRulesService.assetIDs(for: months, in: monthIndex)
+        selectedVideoIDs.formUnion(ids)
+    }
+
+    func applyTopNSelection(_ n: Int) {
+        guard n > 0 else { return }
+        guard permissionState.canReadLibrary else {
+            alertMessage = L10n.tr("Photo access is required before scanning videos.")
+            return
+        }
+
+        Task {
+            await prefetchSizesForAllScannedVideosIfNeeded()
+            let ids = selectionRulesService.topNAssetIDsBySize(n: n, videos: videos, sizesBytesByID: videoSizeBytesByID)
+            selectedVideoIDs.formUnion(ids)
+
+            if ids.count < n {
+                alertMessage = L10n.tr(
+                    "Selected %d item(s). Some videos may not have a local size available (iCloud-only).",
+                    ids.count
+                )
             }
         }
     }
@@ -316,7 +374,6 @@ final class HomeViewModel: ObservableObject {
                         self?.alertMessage = L10n.tr("Migration completed with failures: %d success, %d failed.", result.successCount, result.failureCount)
                     }
 
-                    self?.appendHistory(startedAt: startedAt, finishedAt: finishedAt, targetFolderURL: folderURL, result: result)
                 }
             }
         }
@@ -367,43 +424,6 @@ final class HomeViewModel: ObservableObject {
             }
         } catch {
             alertMessage = ExternalStorageError.invalidBookmark.errorDescription
-        }
-    }
-
-    private func loadHistory() {
-        do {
-            migrationHistory = try historyStore.load()
-        } catch {
-            // Non-fatal: keep history empty
-            migrationHistory = []
-        }
-    }
-
-    private func appendHistory(startedAt: Date, finishedAt: Date, targetFolderURL: URL, result: MigrationRunResult) {
-        let basePath = targetFolderURL.lastPathComponent.isEmpty ? targetFolderURL.path : targetFolderURL.lastPathComponent
-        let items: [MigrationHistoryItem] = result.successes.map {
-            MigrationHistoryItem(assetID: $0.assetID, status: .success, destinationRelativePath: $0.destinationURL.lastPathComponent, bytes: $0.bytes, errorMessage: nil)
-        } + result.failures.map {
-            MigrationHistoryItem(assetID: $0.assetID, status: .failure, destinationRelativePath: nil, bytes: nil, errorMessage: $0.message)
-        }
-
-        let record = MigrationHistoryRecord(
-            id: UUID(),
-            startedAt: startedAt,
-            finishedAt: finishedAt,
-            targetFolderPath: basePath,
-            successes: result.successCount,
-            failures: result.failureCount,
-            items: items
-        )
-
-        migrationHistory.insert(record, at: 0)
-        if migrationHistory.count > 20 {
-            migrationHistory = Array(migrationHistory.prefix(20))
-        }
-
-        Task.detached(priority: .background) { [historyStore] in
-            try? historyStore.append(record)
         }
     }
 }

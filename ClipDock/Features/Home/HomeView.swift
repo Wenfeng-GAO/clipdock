@@ -4,6 +4,8 @@ import UIKit
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @State private var isShowingFolderPicker = false
+    @State private var isShowingMonthPicker = false
+    @State private var isShowingTopNPicker = false
 
     private let durationFormatter: DateComponentsFormatter = {
         let formatter = DateComponentsFormatter()
@@ -26,7 +28,6 @@ struct HomeView: View {
                 permissionsSection
                 externalStorageSection
                 videoScanSection
-                historySection
 
                 if !viewModel.videos.isEmpty {
                     selectionSection
@@ -43,6 +44,30 @@ struct HomeView: View {
                 } onCancel: {
                     isShowingFolderPicker = false
                 }
+            }
+            .sheet(isPresented: $isShowingMonthPicker) {
+                MonthPickerView(
+                    summaries: viewModel.monthSummaries,
+                    onApply: { keys in
+                        viewModel.applyMonthSelection(keys)
+                    },
+                    onDone: {
+                        isShowingMonthPicker = false
+                    }
+                )
+            }
+            .sheet(isPresented: $isShowingTopNPicker) {
+                TopNPickerView(
+                    isFetchingAllVideoSizes: viewModel.isFetchingAllVideoSizes,
+                    knownSizeCount: viewModel.videoSizeBytesByID.count,
+                    totalVideoCount: viewModel.videos.count,
+                    onApply: { n in
+                        viewModel.applyTopNSelection(n)
+                    },
+                    onDone: {
+                        isShowingTopNPicker = false
+                    }
+                )
             }
             .alert(
                 L10n.tr("Notice"),
@@ -93,24 +118,6 @@ struct HomeView: View {
                 L10n.tr("Support"),
                 destination: URL(string: "https://wenfeng-gao.github.io/clipdock/app-store/support.html")!
             )
-        }
-    }
-
-    private var historySection: some View {
-        Section("History") {
-            NavigationLink {
-                HistoryView(records: viewModel.migrationHistory)
-            } label: {
-                Text("View Migration History")
-            }
-
-            if let latest = viewModel.migrationHistory.first {
-                Text(
-                    verbatim: "\(L10n.tr("Latest")): \(latest.finishedAt.formatted(date: .numeric, time: .shortened))  \(L10n.tr("Succeeded")): \(latest.successes)  \(L10n.tr("Failed")): \(latest.failures)"
-                )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 
@@ -201,6 +208,18 @@ struct HomeView: View {
             Text("Tip: tap a row to toggle selection.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Button("By Month...") {
+                    isShowingMonthPicker = true
+                }
+                .buttonStyle(.bordered)
+
+                Button("Top N...") {
+                    isShowingTopNPicker = true
+                }
+                .buttonStyle(.bordered)
+            }
 
             Toggle("Show Selected Only", isOn: $viewModel.showSelectedOnly)
 
@@ -366,13 +385,6 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if let latest = viewModel.migrationHistory.first {
-                    NavigationLink {
-                        HistoryDetailView(record: latest)
-                    } label: {
-                        Text("View Last Run Details")
-                    }
-                }
             } else {
                 Text("Run a migration to see results here.")
                     .foregroundStyle(.secondary)

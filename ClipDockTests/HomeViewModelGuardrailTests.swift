@@ -14,8 +14,7 @@ final class HomeViewModelGuardrailTests: XCTestCase {
             externalStorageService: MockExternalStorageService(),
             videoLibraryService: library,
             videoMigrationService: MockVideoMigrationService(),
-            photoDeletionService: MockPhotoDeletionService(),
-            historyStore: MockHistoryStore()
+            photoDeletionService: MockPhotoDeletionService()
         )
 
         vm.permissionState = .denied
@@ -32,8 +31,7 @@ final class HomeViewModelGuardrailTests: XCTestCase {
             externalStorageService: MockExternalStorageService(),
             videoLibraryService: MockVideoLibraryService(),
             videoMigrationService: migration,
-            photoDeletionService: MockPhotoDeletionService(),
-            historyStore: MockHistoryStore()
+            photoDeletionService: MockPhotoDeletionService()
         )
 
         vm.permissionState = .authorized
@@ -70,8 +68,7 @@ final class HomeViewModelGuardrailTests: XCTestCase {
             externalStorageService: MockExternalStorageService(),
             videoLibraryService: MockVideoLibraryService(),
             videoMigrationService: MockVideoMigrationService(),
-            photoDeletionService: MockPhotoDeletionService(),
-            historyStore: MockHistoryStore()
+            photoDeletionService: MockPhotoDeletionService()
         )
 
         vm.videos = (0..<5000).map { idx in
@@ -81,4 +78,3 @@ final class HomeViewModelGuardrailTests: XCTestCase {
         XCTAssertEqual(vm.selectedVideoIDs.count, 5000)
     }
 }
-

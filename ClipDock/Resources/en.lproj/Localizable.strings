@@ -33,11 +33,22 @@
 "Video Count" = "Video Count";
 "Sort" = "Sort";
 "Loading video sizes..." = "Loading video sizes...";
+"Unknown" = "Unknown";
 
 "Select Videos" = "Select Videos";
 "Selected" = "Selected";
 "Tip: tap a row to toggle selection." = "Tip: tap a row to toggle selection.";
 "Show Selected Only" = "Show Selected Only";
+"By Month..." = "By Month...";
+"Top N..." = "Top N...";
+"Apply" = "Apply";
+"Done" = "Done";
+"Select by Month" = "Select by Month";
+"Select Top N" = "Select Top N";
+"Top N" = "Top N";
+"Selected %d item(s). Some videos may not have a local size available (iCloud-only)." = "Selected %d item(s). Some videos may not have a local size available (iCloud-only).";
+"Known sizes: %d/%d" = "Known sizes: %d/%d";
+"Tip: Top-N selects the largest locally-sized videos. iCloud-only videos may be skipped." = "Tip: Top-N selects the largest locally-sized videos. iCloud-only videos may be skipped.";
 "Select All" = "Select All";
 "Clear" = "Clear";
 

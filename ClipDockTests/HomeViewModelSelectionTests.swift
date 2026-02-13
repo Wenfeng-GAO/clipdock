@@ -9,8 +9,7 @@ final class HomeViewModelSelectionTests: XCTestCase {
             externalStorageService: MockExternalStorageService(),
             videoLibraryService: MockVideoLibraryService(),
             videoMigrationService: MockVideoMigrationService(),
-            photoDeletionService: MockPhotoDeletionService(),
-            historyStore: MockHistoryStore()
+            photoDeletionService: MockPhotoDeletionService()
         )
 
         XCTAssertTrue(vm.selectedVideoIDs.isEmpty)
@@ -26,8 +25,7 @@ final class HomeViewModelSelectionTests: XCTestCase {
             externalStorageService: MockExternalStorageService(),
             videoLibraryService: MockVideoLibraryService(),
             videoMigrationService: MockVideoMigrationService(),
-            photoDeletionService: MockPhotoDeletionService(),
-            historyStore: MockHistoryStore()
+            photoDeletionService: MockPhotoDeletionService()
         )
 
         vm.videos = [
@@ -42,4 +40,3 @@ final class HomeViewModelSelectionTests: XCTestCase {
         XCTAssertTrue(vm.selectedVideoIDs.isEmpty)
     }
 }
-

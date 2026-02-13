@@ -19,8 +19,7 @@ final class HomeViewModelMigrationAndDeletionTests: XCTestCase {
                 externalStorageService: MockExternalStorageService(),
                 videoLibraryService: videoLibrary,
                 videoMigrationService: migration,
-                photoDeletionService: MockPhotoDeletionService(),
-                historyStore: MockHistoryStore()
+                photoDeletionService: MockPhotoDeletionService()
             )
         }
 
@@ -60,8 +59,7 @@ final class HomeViewModelMigrationAndDeletionTests: XCTestCase {
                 externalStorageService: MockExternalStorageService(),
                 videoLibraryService: MockVideoLibraryService(),
                 videoMigrationService: MockVideoMigrationService(),
-                photoDeletionService: deletion,
-                historyStore: MockHistoryStore()
+                photoDeletionService: deletion
             )
         }
 
@@ -87,4 +85,3 @@ final class HomeViewModelMigrationAndDeletionTests: XCTestCase {
         XCTAssertEqual(ids, ["A", "B"])
     }
 }
-
