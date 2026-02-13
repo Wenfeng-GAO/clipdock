@@ -36,5 +36,5 @@ ClipDock 只在不触发 iCloud 下载的前提下尽力显示本地大小；若
 
 ## Contact / 联系方式
 
-- Email: (to be filled)
+- Email: elricfeng@gmail.com
 - GitHub Issues: https://github.com/Wenfeng-GAO/clipdock/issues

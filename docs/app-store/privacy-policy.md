@@ -54,8 +54,8 @@ ClipDock 会在你的设备本地保存：
 
 If you have questions about this policy, contact:
 
-- Email: (to be filled)
+- Email: elricfeng@gmail.com
 
 如对本隐私政策有疑问，请联系：
 
-- 邮箱：（待填写）
+- 邮箱：elricfeng@gmail.com
