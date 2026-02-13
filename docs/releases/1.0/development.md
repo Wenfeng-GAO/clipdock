@@ -1,6 +1,6 @@
 # ClipDock 1.0 开发文档（独立版本）
 
-更新时间：2026-02-13
+更新时间：2026-02-14
 
 本文件只描述 **1.0** 版本的实现方案与验证范围，不与 MVP 文档混写。
 
@@ -154,5 +154,20 @@
 3. 关键文件：
    - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeView.swift`
    - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/Components/HomeCard.swift`
+4. 验证：
+   - `xcodebuild test`（Simulator）：16 tests / 0 failure。
+
+### 2026-02-14 - UI 调整：去权限展示、合并扫描与选择、排序下沉到列表
+1. 背景：根据真机反馈进一步“更稳、更克制”：减少不可控信息（权限展示）、减少卡片数量、把排序放在列表上下文里。
+2. 交付：
+   - 移除“相册权限卡”。扫描按钮会在 `notDetermined` 时触发系统授权弹窗；若已拒绝则提示用户去系统设置开启。
+   - 合并“扫描视频 + 选择视频”为一张卡（Scan & Select），并在卡片内同时展示“视频数量 + 已选择数量”。
+   - 排序控件移动到“视频列表”卡片顶部：字段 `Date/Size`（segmented）+ 正/倒序箭头按钮。
+   - 列表默认展示 20 条，`Load More` 每次 +20。
+3. 关键文件：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeView.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeViewModel.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Resources/en.lproj/Localizable.strings`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Resources/zh-Hans.lproj/Localizable.strings`
 4. 验证：
    - `xcodebuild test`（Simulator）：16 tests / 0 failure。

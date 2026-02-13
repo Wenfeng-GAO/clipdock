@@ -30,12 +30,10 @@ struct HomeView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        permissionsCard
                         externalStorageCard
-                        scanCard
+                        scanAndSelectCard
 
                         if !viewModel.videos.isEmpty {
-                            selectionCard
                             videosCard
                         }
                     }
@@ -111,7 +109,7 @@ struct HomeView: View {
                     }
                 )
             ) {
-                Button("OK", role: .cancel) {}
+                Button(L10n.tr("OK"), role: .cancel) {}
             } message: {
                 Text(verbatim: viewModel.alertMessage ?? "")
             }
@@ -119,10 +117,10 @@ struct HomeView: View {
                 L10n.tr("Delete Originals?"),
                 isPresented: $viewModel.isShowingDeleteConfirm
             ) {
-                Button("Delete", role: .destructive) {
+                Button(L10n.tr("Delete"), role: .destructive) {
                     viewModel.deleteMigratedOriginals()
                 }
-                Button("Cancel", role: .cancel) {}
+                Button(L10n.tr("Cancel"), role: .cancel) {}
             } message: {
                 Text(
                     verbatim: L10n.tr(
@@ -141,6 +139,10 @@ struct HomeView: View {
         NavigationStack {
             List {
                 Section {
+                    Text(L10n.tr("ClipDock Description"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
                     LabeledContent(L10n.tr("App Version"), value: appVersionText)
                 }
                 Section {
@@ -162,28 +164,6 @@ struct HomeView: View {
                     }
                 }
             }
-        }
-    }
-
-    private var permissionsCard: some View {
-        HomeCard(title: L10n.tr("Photos Permission"), systemImage: "photo.on.rectangle") {
-            HStack(alignment: .firstTextBaseline) {
-                Text(L10n.tr("Status"))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 12)
-                Text(viewModel.permissionState.displayText)
-                    .font(.callout)
-                    .foregroundStyle(viewModel.permissionState.canReadLibrary ? .primary : .secondary)
-            }
-
-            Button {
-                viewModel.requestPhotoAccess()
-            } label: {
-                Text(L10n.tr("Grant Access"))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(viewModel.permissionState.canReadLibrary)
         }
     }
 
@@ -237,8 +217,8 @@ struct HomeView: View {
         }
     }
 
-    private var scanCard: some View {
-        HomeCard(title: L10n.tr("Video Scan"), systemImage: "magnifyingglass") {
+    private var scanAndSelectCard: some View {
+        HomeCard(title: L10n.tr("Scan & Select"), systemImage: "sparkle.magnifyingglass") {
             HStack(spacing: 12) {
                 Button {
                     viewModel.scanVideos()
@@ -255,25 +235,29 @@ struct HomeView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(viewModel.isScanningVideos || !viewModel.permissionState.canReadLibrary)
+                .disabled(viewModel.isScanningVideos)
 
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(L10n.tr("Video Count"))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Text("\(viewModel.videos.count)")
-                        .font(.system(.title3, design: .rounded).weight(.semibold))
-                        .monospacedDigit()
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(L10n.tr("Video Count"))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text("\(viewModel.videos.count)")
+                                .font(.system(.title3, design: .rounded).weight(.semibold))
+                                .monospacedDigit()
+                        }
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(L10n.tr("Selected"))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text("\(viewModel.selectedVideoIDs.count)")
+                                .font(.system(.title3, design: .rounded).weight(.semibold))
+                                .monospacedDigit()
+                        }
+                    }
                 }
             }
-
-            Picker(L10n.tr("Sort"), selection: $viewModel.sortMode) {
-                ForEach(VideoSortMode.allCases) { mode in
-                    Text(mode.displayText).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .disabled(viewModel.videos.isEmpty)
 
             if viewModel.isFetchingVideoSizes {
                 HStack(spacing: 8) {
@@ -283,63 +267,51 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-        }
-    }
 
-    private var selectionCard: some View {
-        HomeCard(title: L10n.tr("Select Videos"), systemImage: "checkmark.circle") {
-            HStack(alignment: .firstTextBaseline) {
-                Text(L10n.tr("Selected"))
+            if !viewModel.videos.isEmpty {
+                Text(L10n.tr("Tip: tap a row to toggle selection."))
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-                Spacer(minLength: 12)
-                Text("\(viewModel.selectedVideoIDs.count)")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .monospacedDigit()
-            }
 
-            Text(L10n.tr("Tip: tap a row to toggle selection."))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    Button {
+                        isShowingMonthPicker = true
+                    } label: {
+                        Label(L10n.tr("By Month..."), systemImage: "calendar")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
 
-            HStack(spacing: 12) {
-                Button {
-                    isShowingMonthPicker = true
-                } label: {
-                    Label(L10n.tr("By Month..."), systemImage: "calendar")
-                        .frame(maxWidth: .infinity)
+                    Button {
+                        isShowingTopNPicker = true
+                    } label: {
+                        Label(L10n.tr("Top N..."), systemImage: "arrow.up.right.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
 
-                Button {
-                    isShowingTopNPicker = true
-                } label: {
-                    Label(L10n.tr("Top N..."), systemImage: "arrow.up.right.circle")
-                        .frame(maxWidth: .infinity)
+                Toggle(L10n.tr("Show Selected Only"), isOn: $viewModel.showSelectedOnly)
+
+                HStack(spacing: 12) {
+                    Button {
+                        viewModel.selectAllScannedVideos()
+                    } label: {
+                        Text(L10n.tr("Select All"))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        viewModel.clearSelection()
+                    } label: {
+                        Text(L10n.tr("Clear"))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
+                    .disabled(viewModel.selectedVideoIDs.isEmpty)
                 }
-                .buttonStyle(.bordered)
-            }
-
-            Toggle(L10n.tr("Show Selected Only"), isOn: $viewModel.showSelectedOnly)
-
-            HStack(spacing: 12) {
-                Button {
-                    viewModel.selectAllScannedVideos()
-                } label: {
-                    Text(L10n.tr("Select All"))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    viewModel.clearSelection()
-                } label: {
-                    Text(L10n.tr("Clear"))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.secondary)
-                .disabled(viewModel.selectedVideoIDs.isEmpty)
             }
         }
     }
@@ -347,6 +319,34 @@ struct HomeView: View {
     private var videosCard: some View {
         HomeCard(title: L10n.tr("Video List"), systemImage: "film") {
             let displayed = viewModel.displayedVideos
+
+            HStack(spacing: 10) {
+                Picker(L10n.tr("Sort"), selection: Binding(
+                    get: { viewModel.sortField },
+                    set: { viewModel.setSort(field: $0) }
+                )) {
+                    ForEach(VideoSortField.allCases) { field in
+                        Text(field.displayText).tag(field)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Button {
+                    viewModel.toggleSortOrder()
+                } label: {
+                    Image(systemName: viewModel.isSortAscending ? "arrow.up" : "arrow.down")
+                        .font(.system(.headline, design: .rounded))
+                        .frame(width: 36, height: 32)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.tr("Sort Order"))
+                .accessibilityValue(viewModel.isSortAscending ? L10n.tr("Ascending") : L10n.tr("Descending"))
+            }
+            .padding(.bottom, 8)
 
             LazyVStack(spacing: 0) {
                 ForEach(displayed) { video in

@@ -7,6 +7,7 @@
 
 "About" = "About";
 "App Version" = "App Version";
+"ClipDock Description" = "ClipDock helps you copy selected videos from Photos to an external folder (Files) to free up space on your iPhone.";
 "Privacy Policy" = "Privacy Policy";
 "Support" = "Support";
 
@@ -34,6 +35,13 @@
 "Sort" = "Sort";
 "Loading video sizes..." = "Loading video sizes...";
 "Unknown" = "Unknown";
+
+"Scan & Select" = "Scan & Select";
+"Date" = "Date";
+"Date (Oldest)" = "Date (Oldest)";
+"Sort Order" = "Sort Order";
+"Ascending" = "Ascending";
+"Descending" = "Descending";
 
 "Select Videos" = "Select Videos";
 "Selected" = "Selected";

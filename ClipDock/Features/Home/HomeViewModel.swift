@@ -2,6 +2,7 @@ import Foundation
 
 enum VideoSortMode: String, CaseIterable, Identifiable {
     case dateDesc
+    case dateAsc
     case sizeDesc
     case sizeAsc
 
@@ -10,8 +11,23 @@ enum VideoSortMode: String, CaseIterable, Identifiable {
     var displayText: String {
         switch self {
         case .dateDesc: L10n.tr("Date (Newest)")
+        case .dateAsc: L10n.tr("Date (Oldest)")
         case .sizeDesc: L10n.tr("Size (Largest)")
         case .sizeAsc: L10n.tr("Size (Smallest)")
+        }
+    }
+}
+
+enum VideoSortField: String, CaseIterable, Identifiable {
+    case date
+    case size
+
+    var id: String { rawValue }
+
+    var displayText: String {
+        switch self {
+        case .date: L10n.tr("Date")
+        case .size: L10n.tr("Size")
         }
     }
 }
@@ -29,7 +45,10 @@ final class HomeViewModel: ObservableObject {
     @Published var sortMode: VideoSortMode = .dateDesc {
         didSet {
             applySort()
-            if sortMode != .dateDesc {
+            switch sortMode {
+            case .sizeAsc, .sizeDesc:
+                prefetchSizesForSortingIfNeeded()
+            case .dateAsc, .dateDesc:
                 prefetchSizesForVisibleRangeIfNeeded()
             }
         }
@@ -42,10 +61,13 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var monthSummaries: [MonthSummary] = []
 
     // List rendering controls (M10)
-    @Published var listVisibleLimit: Int = 200
+    @Published var listVisibleLimit: Int = 20
     @Published var showSelectedOnly: Bool = false {
         didSet {
-            if sortMode != .dateDesc {
+            switch sortMode {
+            case .sizeAsc, .sizeDesc:
+                prefetchSizesForSortingIfNeeded()
+            case .dateAsc, .dateDesc:
                 prefetchSizesForVisibleRangeIfNeeded()
             }
         }
@@ -134,13 +156,30 @@ final class HomeViewModel: ObservableObject {
     }
 
     func scanVideos() {
+        if permissionState == .notDetermined {
+            Task {
+                let status = await photoPermissionService.requestReadWriteAccess()
+                permissionState = status
+                guard permissionState.canReadLibrary else {
+                    alertMessage = L10n.tr("Photo access is required before scanning videos.")
+                    return
+                }
+                beginScan()
+            }
+            return
+        }
+
         guard permissionState.canReadLibrary else {
             alertMessage = L10n.tr("Photo access is required before scanning videos.")
             return
         }
 
+        beginScan()
+    }
+
+    private func beginScan() {
         isScanningVideos = true
-        listVisibleLimit = 200
+        listVisibleLimit = 20
         showSelectedOnly = false
         selectedVideoIDs.removeAll()
         lastMigrationResult = nil
@@ -148,6 +187,7 @@ final class HomeViewModel: ObservableObject {
         inFlightSizeAssetIDs = []
         monthSummaries = []
         monthIndex = [:]
+
         Task {
             let fetchedVideos = await videoLibraryService.fetchVideosSortedByDate(limit: nil)
             videos = fetchedVideos
@@ -155,8 +195,12 @@ final class HomeViewModel: ObservableObject {
             isScanningVideos = false
             rebuildMonthIndex()
 
-            // Preload sizes for the first page so the list can display sizes immediately.
-            prefetchSizesForVisibleRangeIfNeeded()
+            switch sortMode {
+            case .sizeAsc, .sizeDesc:
+                prefetchSizesForSortingIfNeeded()
+            case .dateAsc, .dateDesc:
+                prefetchSizesForVisibleRangeIfNeeded()
+            }
         }
     }
 
@@ -180,6 +224,47 @@ final class HomeViewModel: ObservableObject {
 
     // MARK: - Sorting + Size (M9)
 
+    var sortField: VideoSortField {
+        switch sortMode {
+        case .dateDesc, .dateAsc:
+            return .date
+        case .sizeDesc, .sizeAsc:
+            return .size
+        }
+    }
+
+    var isSortAscending: Bool {
+        switch sortMode {
+        case .dateAsc, .sizeAsc:
+            return true
+        case .dateDesc, .sizeDesc:
+            return false
+        }
+    }
+
+    func setSort(field: VideoSortField) {
+        let ascending = isSortAscending
+        switch field {
+        case .date:
+            sortMode = ascending ? .dateAsc : .dateDesc
+        case .size:
+            sortMode = ascending ? .sizeAsc : .sizeDesc
+        }
+    }
+
+    func toggleSortOrder() {
+        switch sortMode {
+        case .dateDesc:
+            sortMode = .dateAsc
+        case .dateAsc:
+            sortMode = .dateDesc
+        case .sizeDesc:
+            sortMode = .sizeAsc
+        case .sizeAsc:
+            sortMode = .sizeDesc
+        }
+    }
+
     func formattedSizeText(for assetID: String) -> String {
         guard let bytes = videoSizeBytesByID[assetID] else { return "--" }
         let formatter = ByteCountFormatter()
@@ -202,7 +287,7 @@ final class HomeViewModel: ObservableObject {
             inFlightSizeAssetIDs.remove(assetID)
 
             // Only re-sort automatically when sorting by size to avoid annoying reorders.
-            if sortMode != .dateDesc {
+            if sortMode != .dateDesc && sortMode != .dateAsc {
                 applySort()
             }
         }
@@ -226,7 +311,33 @@ final class HomeViewModel: ObservableObject {
             missing.forEach { inFlightSizeAssetIDs.remove($0) }
             isFetchingVideoSizes = false
 
-            if sortMode != .dateDesc {
+            if sortMode != .dateDesc && sortMode != .dateAsc {
+                applySort()
+            }
+        }
+    }
+
+    private func prefetchSizesForSortingIfNeeded() {
+        guard permissionState.canReadLibrary else { return }
+
+        let base = showSelectedOnly ? videos.filter { selectedVideoIDs.contains($0.id) } : videos
+        let ids = Array(base.prefix(200).map(\.id))
+        guard !ids.isEmpty else { return }
+
+        let missing = ids.filter { videoSizeBytesByID[$0] == nil && !inFlightSizeAssetIDs.contains($0) }
+        guard !missing.isEmpty else { return }
+
+        isFetchingVideoSizes = true
+        missing.forEach { inFlightSizeAssetIDs.insert($0) }
+        Task {
+            let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: missing)
+            for (id, bytes) in sizes {
+                videoSizeBytesByID[id] = bytes
+            }
+            missing.forEach { inFlightSizeAssetIDs.remove($0) }
+            isFetchingVideoSizes = false
+
+            if sortMode != .dateDesc && sortMode != .dateAsc {
                 applySort()
             }
         }
@@ -247,7 +358,7 @@ final class HomeViewModel: ObservableObject {
         missing.forEach { inFlightSizeAssetIDs.remove($0) }
         isFetchingAllVideoSizes = false
 
-        if sortMode != .dateDesc {
+        if sortMode != .dateDesc && sortMode != .dateAsc {
             applySort()
         }
     }
@@ -287,6 +398,8 @@ final class HomeViewModel: ObservableObject {
         switch sortMode {
         case .dateDesc:
             videos.sort { $0.creationDate > $1.creationDate }
+        case .dateAsc:
+            videos.sort { $0.creationDate < $1.creationDate }
         case .sizeDesc:
             videos.sort { a, b in
                 let sa = videoSizeBytesByID[a.id]
@@ -323,9 +436,10 @@ final class HomeViewModel: ObservableObject {
 
     func loadMoreVideos() {
         let total = showSelectedOnly ? videos.filter { selectedVideoIDs.contains($0.id) }.count : videos.count
-        listVisibleLimit = min(listVisibleLimit + 200, total)
-        if sortMode != .dateDesc {
-            prefetchSizesForVisibleRangeIfNeeded()
+        listVisibleLimit = min(listVisibleLimit + 20, total)
+        prefetchSizesForVisibleRangeIfNeeded()
+        if sortMode != .dateDesc && sortMode != .dateAsc {
+            prefetchSizesForSortingIfNeeded()
         }
     }
 
@@ -358,14 +472,12 @@ final class HomeViewModel: ObservableObject {
         lastMigrationResult = nil
 
         Task {
-            let startedAt = Date()
             await videoMigrationService.migrateVideoAssetIDs(assetIDs, to: folderURL) { [weak self] progress in
                 Task { @MainActor in
                     self?.migrationProgress = progress
                 }
             } onResult: { [weak self] result in
                 Task { @MainActor in
-                    let finishedAt = Date()
                     self?.isMigrating = false
                     self?.lastMigrationResult = result
                     if result.failureCount == 0 {

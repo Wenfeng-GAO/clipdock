@@ -7,6 +7,7 @@
 
 "About" = "关于";
 "App Version" = "版本";
+"ClipDock Description" = "ClipDock 可将相册中的视频复制到外接存储（文件 App 目录）以释放 iPhone 空间。";
 "Privacy Policy" = "隐私政策";
 "Support" = "技术支持";
 
@@ -34,6 +35,13 @@
 "Sort" = "排序";
 "Loading video sizes..." = "正在加载视频大小...";
 "Unknown" = "未知";
+
+"Scan & Select" = "扫描与选择";
+"Date" = "日期";
+"Date (Oldest)" = "日期（最早）";
+"Sort Order" = "排序方向";
+"Ascending" = "正序";
+"Descending" = "倒序";
 
 "Select Videos" = "选择视频";
 "Selected" = "已选择";
