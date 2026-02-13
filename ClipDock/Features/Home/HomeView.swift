@@ -82,8 +82,17 @@ struct HomeView: View {
     }
 
     private var aboutSection: some View {
-        Section("About") {
-            LabeledContent("App Version", value: appVersionText)
+        Section(L10n.tr("About")) {
+            LabeledContent(L10n.tr("App Version"), value: appVersionText)
+
+            Link(
+                L10n.tr("Privacy Policy"),
+                destination: URL(string: "https://wenfeng-gao.github.io/clipdock/app-store/privacy-policy.html")!
+            )
+            Link(
+                L10n.tr("Support"),
+                destination: URL(string: "https://wenfeng-gao.github.io/clipdock/app-store/support.html")!
+            )
         }
     }
 
