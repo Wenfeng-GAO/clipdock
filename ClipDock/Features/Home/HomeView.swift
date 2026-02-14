@@ -41,7 +41,8 @@ struct HomeView: View {
                     .padding(.bottom, 20)
                 }
             }
-            .navigationTitle("ClipDock")
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
