@@ -4,6 +4,8 @@
 
 # ClipDock
 
+App Store display name: **ClipDock: Free Up Space** (1.0).
+
 ClipDock is an iOS app that helps you copy selected videos from iPhone Photos to an external folder (Files), then optionally delete originals to free up device space.
 
 [![CI](https://github.com/Wenfeng-GAO/clipdock/actions/workflows/ci.yml/badge.svg)](https://github.com/Wenfeng-GAO/clipdock/actions/workflows/ci.yml)

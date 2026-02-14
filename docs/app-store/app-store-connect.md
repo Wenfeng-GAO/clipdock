@@ -23,13 +23,20 @@ This file is a practical, copy/paste oriented checklist for submitting **ClipDoc
 
 1. Go to App Store Connect -> My Apps -> New App.
 2. Platform: iOS.
-3. Name: `ClipDock`.
+3. Name (App Store display name): `ClipDock: Free Up Space` (must be unique).
 4. Primary language: English.
 5. Bundle ID: `com.wenfeng.clipdock`.
 6. SKU: `clipdock`.
 
 Optional localizations:
-- You can add Simplified Chinese localization, but keep the name as `ClipDock`.
+- You can add Simplified Chinese localization later.
+
+Important:
+- If you do NOT distribute in the EU, you can ignore EU-only requirements in the app metadata.
+- However, Apple may still require you to declare your Digital Services Act (DSA) trader status in App Store Connect.
+  If you see a red banner about EU/DSA compliance:
+  - Go to App Store Connect -> Business -> Compliance -> Digital Services Act
+  - Declare your trader status (usually "Not a trader" for a free, offline utility app).
 
 ## 2. Pricing and Availability
 
