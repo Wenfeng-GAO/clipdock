@@ -103,6 +103,19 @@ Recommended set:
 4. Migration in progress (progress + filename).
 5. Migration completed (Start disabled, Delete highlighted).
 
+### 7.1 Generate the 6.5-inch iPhone screenshot (local helper)
+
+App Store Connect commonly requires a 6.5-inch iPhone screenshot. This repo includes a simulator-only
+"screenshot mode" that avoids Photos permission dialogs and does not require real media.
+
+1. Run:
+   ```bash
+   cd /Users/wenfeng/Documents/iphoneapp
+   scripts/generate_app_store_screenshot_iphone65.sh
+   ```
+2. Output file:
+   - `docs/app-store/screenshots/iphone65-1.png` (ignored by git)
+
 ## 8. Known Constraints (transparent)
 
 - iOS does not allow moving a Photos item directly. ClipDock does copy to destination and then (optionally) deletes originals after user confirmation.
