@@ -19,6 +19,10 @@ This file is a practical, copy/paste oriented checklist for submitting **ClipDoc
    - Version: `1.0.0`
    - Build: increment as needed for each upload (`CFBundleVersion`).
 
+## Submission Record
+
+- 2026-02-14: Submitted `1.0.0 (9)` for review. Status: Waiting for Review.
+
 ## 1. App Store Connect: Create App Record
 
 1. Go to App Store Connect -> My Apps -> New App.
