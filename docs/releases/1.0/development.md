@@ -180,3 +180,18 @@
    - size 排序模式下也会兜底触发全量 size 预取。
 4. 验证：
    - `xcodebuild test`（Simulator）：回归新增/更新 `HomeViewModelSortAndSizeTests` 覆盖扫描后全量 size 预取。
+
+### 2026-02-14 - 选择体验：快捷筛选 + 取消/应用 + 已选总大小
+1. 交付：
+   - 合并“按月份选择 / 最大 N”入口为单一入口 `Quick Filter（快捷筛选）`。
+   - 筛选弹窗按钮改为 `Cancel / Apply`；当未选择任何筛选条件时，`Apply` 不可用。
+   - 首页展示“已选视频总大小”（基于本地可得 size，iCloud-only 条目会导致部分未知）。
+   - `Clear` 在存在选择时视觉上更“亮”（启用态使用强调色）。
+2. 关键文件：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeView.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/RulePickers/QuickFilterView.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeViewModel.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Resources/en.lproj/Localizable.strings`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Resources/zh-Hans.lproj/Localizable.strings`
+3. 验证：
+   - `xcodebuild test`（Simulator）：16 tests / 0 failure。

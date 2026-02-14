@@ -45,10 +45,13 @@
 
 "Select Videos" = "Select Videos";
 "Selected" = "Selected";
+"Selected Size" = "Selected Size";
 "Tip: tap a row to toggle selection." = "Tip: tap a row to toggle selection.";
 "Show Selected Only" = "Show Selected Only";
 "By Month..." = "By Month...";
 "Top N..." = "Top N...";
+"Quick Filter" = "Quick Filter";
+"By Month" = "By Month";
 "Apply" = "Apply";
 "Done" = "Done";
 "Select by Month" = "Select by Month";

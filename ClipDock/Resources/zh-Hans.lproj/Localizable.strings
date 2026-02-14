@@ -45,10 +45,13 @@
 
 "Select Videos" = "选择视频";
 "Selected" = "已选择";
+"Selected Size" = "已选择大小";
 "Tip: tap a row to toggle selection." = "提示：点击列表项可切换选择。";
 "Show Selected Only" = "仅显示已选择";
 "By Month..." = "按月份选择...";
 "Top N..." = "选择最大N...";
+"Quick Filter" = "快捷筛选";
+"By Month" = "按月份";
 "Apply" = "应用";
 "Done" = "完成";
 "Select by Month" = "按月份选择";

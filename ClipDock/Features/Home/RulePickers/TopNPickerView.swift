@@ -25,7 +25,7 @@ struct TopNPickerView: View {
                     if isFetchingAllVideoSizes {
                         HStack(spacing: 8) {
                             ProgressView()
-                            Text("Loading video sizes...")
+                            Text(L10n.tr("Loading video sizes..."))
                                 .foregroundStyle(.secondary)
                         }
                     } else {
@@ -48,7 +48,7 @@ struct TopNPickerView: View {
             .navigationTitle(L10n.tr("Select Top N"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(L10n.tr("Done")) {
+                    Button(L10n.tr("Cancel")) {
                         onDone()
                     }
                 }

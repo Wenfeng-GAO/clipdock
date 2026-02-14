@@ -69,6 +69,8 @@ final class HomeViewModel: ObservableObject {
 
     // M4: manual selection
     @Published var selectedVideoIDs: Set<String> = []
+    @Published private(set) var selectedKnownSizeCount: Int = 0
+    @Published private(set) var selectedTotalKnownBytes: Int64 = 0
 
     // M5: migration (minimal v1)
     @Published var isMigrating = false
@@ -176,6 +178,8 @@ final class HomeViewModel: ObservableObject {
         listVisibleLimit = 20
         showSelectedOnly = false
         selectedVideoIDs.removeAll()
+        selectedKnownSizeCount = 0
+        selectedTotalKnownBytes = 0
         lastMigrationResult = nil
         videoSizeBytesByID = [:]
         inFlightSizeAssetIDs = []
@@ -199,17 +203,28 @@ final class HomeViewModel: ObservableObject {
     func toggleSelection(for assetID: String) {
         if selectedVideoIDs.contains(assetID) {
             selectedVideoIDs.remove(assetID)
+            if let bytes = videoSizeBytesByID[assetID] {
+                selectedTotalKnownBytes -= bytes
+                selectedKnownSizeCount = max(0, selectedKnownSizeCount - 1)
+            }
         } else {
             selectedVideoIDs.insert(assetID)
+            if let bytes = videoSizeBytesByID[assetID] {
+                selectedTotalKnownBytes += bytes
+                selectedKnownSizeCount += 1
+            }
         }
     }
 
     func selectAllScannedVideos() {
         selectedVideoIDs = Set(videos.map(\.id))
+        recomputeSelectedSizeTotals()
     }
 
     func clearSelection() {
         selectedVideoIDs.removeAll()
+        selectedKnownSizeCount = 0
+        selectedTotalKnownBytes = 0
     }
 
     // MARK: - Sorting + Size (M9)
@@ -263,6 +278,14 @@ final class HomeViewModel: ObservableObject {
         return formatter.string(fromByteCount: bytes)
     }
 
+    var selectedTotalSizeText: String {
+        guard selectedKnownSizeCount > 0 else { return "--" }
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: selectedTotalKnownBytes)
+    }
+
     func ensureSizeLoaded(for assetID: String) {
         guard permissionState.canReadLibrary else { return }
         // Avoid duplicate per-row fetches when we are already prefetching sizes for the full library.
@@ -274,7 +297,12 @@ final class HomeViewModel: ObservableObject {
         Task {
             let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: [assetID])
             if let bytes = sizes[assetID] {
+                let wasMissing = (videoSizeBytesByID[assetID] == nil)
                 videoSizeBytesByID[assetID] = bytes
+                if wasMissing, selectedVideoIDs.contains(assetID) {
+                    selectedTotalKnownBytes += bytes
+                    selectedKnownSizeCount += 1
+                }
             }
             inFlightSizeAssetIDs.remove(assetID)
 
@@ -298,7 +326,12 @@ final class HomeViewModel: ObservableObject {
         Task {
             let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: missing)
             for (id, bytes) in sizes {
+                let wasMissing = (videoSizeBytesByID[id] == nil)
                 videoSizeBytesByID[id] = bytes
+                if wasMissing, selectedVideoIDs.contains(id) {
+                    selectedTotalKnownBytes += bytes
+                    selectedKnownSizeCount += 1
+                }
             }
             missing.forEach { inFlightSizeAssetIDs.remove($0) }
             isFetchingVideoSizes = false
@@ -321,7 +354,12 @@ final class HomeViewModel: ObservableObject {
         isFetchingVideoSizes = true
         let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: missing)
         for (id, bytes) in sizes {
+            let wasMissing = (videoSizeBytesByID[id] == nil)
             videoSizeBytesByID[id] = bytes
+            if wasMissing, selectedVideoIDs.contains(id) {
+                selectedTotalKnownBytes += bytes
+                selectedKnownSizeCount += 1
+            }
         }
         isFetchingVideoSizes = false
         isFetchingAllVideoSizes = false
@@ -338,7 +376,7 @@ final class HomeViewModel: ObservableObject {
 
     func applyMonthSelection(_ months: Set<MonthKey>) {
         let ids = selectionRulesService.assetIDs(for: months, in: monthIndex)
-        selectedVideoIDs.formUnion(ids)
+        addToSelection(ids)
     }
 
     func applyTopNSelection(_ n: Int) {
@@ -351,7 +389,7 @@ final class HomeViewModel: ObservableObject {
         Task {
             await prefetchSizesForAllScannedVideosIfNeeded()
             let ids = selectionRulesService.topNAssetIDsBySize(n: n, videos: videos, sizesBytesByID: videoSizeBytesByID)
-            selectedVideoIDs.formUnion(ids)
+            addToSelection(Set(ids))
 
             if ids.count < n {
                 alertMessage = L10n.tr(
@@ -359,6 +397,44 @@ final class HomeViewModel: ObservableObject {
                     ids.count
                 )
             }
+        }
+    }
+
+    func applyQuickFilter(months: Set<MonthKey>, topN: Int) {
+        guard permissionState.canReadLibrary else {
+            alertMessage = L10n.tr("Photo access is required before scanning videos.")
+            return
+        }
+
+        Task {
+            let candidates: [VideoAssetSummary]
+            if months.isEmpty {
+                candidates = videos
+            } else {
+                let ids = selectionRulesService.assetIDs(for: months, in: monthIndex)
+                candidates = videos.filter { ids.contains($0.id) }
+            }
+
+            var selectedIDs: [String] = []
+            if topN > 0 {
+                await prefetchSizesForAllScannedVideosIfNeeded()
+                selectedIDs = selectionRulesService.topNAssetIDsBySize(
+                    n: topN,
+                    videos: candidates,
+                    sizesBytesByID: videoSizeBytesByID
+                )
+                if selectedIDs.count < topN {
+                    alertMessage = L10n.tr(
+                        "Selected %d item(s). Some videos may not have a local size available (iCloud-only).",
+                        selectedIDs.count
+                    )
+                }
+            } else {
+                selectedIDs = candidates.map(\.id)
+            }
+
+            selectedVideoIDs = Set(selectedIDs)
+            recomputeSelectedSizeTotals()
         }
     }
 
@@ -502,5 +578,29 @@ final class HomeViewModel: ObservableObject {
         } catch {
             alertMessage = ExternalStorageError.invalidBookmark.errorDescription
         }
+    }
+
+    private func addToSelection(_ ids: Set<String>) {
+        guard !ids.isEmpty else { return }
+        for id in ids where !selectedVideoIDs.contains(id) {
+            selectedVideoIDs.insert(id)
+            if let bytes = videoSizeBytesByID[id] {
+                selectedTotalKnownBytes += bytes
+                selectedKnownSizeCount += 1
+            }
+        }
+    }
+
+    private func recomputeSelectedSizeTotals() {
+        var total: Int64 = 0
+        var known = 0
+        for id in selectedVideoIDs {
+            if let bytes = videoSizeBytesByID[id] {
+                total += bytes
+                known += 1
+            }
+        }
+        selectedTotalKnownBytes = total
+        selectedKnownSizeCount = known
     }
 }
