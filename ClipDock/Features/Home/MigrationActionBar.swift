@@ -7,6 +7,14 @@ struct MigrationActionBar: View {
     @Binding var isShowingFailures: Bool
 
     var body: some View {
+        let canDelete = viewModel.deletableSuccessCount > 0 && !viewModel.isDeleting && !viewModel.isMigrating
+        let shouldHoldStartForDelete = canDelete
+        let canStart = !viewModel.isMigrating &&
+            !viewModel.selectedVideoIDs.isEmpty &&
+            viewModel.selectedFolderURL != nil &&
+            viewModel.isFolderWritable &&
+            !shouldHoldStartForDelete
+
         VStack(spacing: 10) {
             if let progress = viewModel.migrationProgress, viewModel.isMigrating {
                 VStack(alignment: .leading, spacing: 6) {
@@ -62,12 +70,7 @@ struct MigrationActionBar: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(
-                    viewModel.isMigrating ||
-                    viewModel.selectedVideoIDs.isEmpty ||
-                    viewModel.selectedFolderURL == nil ||
-                    !viewModel.isFolderWritable
-                )
+                .disabled(!canStart)
 
                 Button {
                     viewModel.promptDeleteMigratedOriginals()
@@ -82,8 +85,8 @@ struct MigrationActionBar: View {
                     }
                 }
                 .buttonStyle(.bordered)
-                .tint(.secondary)
-                .disabled(viewModel.deletableSuccessCount == 0 || viewModel.isDeleting || viewModel.isMigrating)
+                .tint(canDelete ? .red : .secondary)
+                .disabled(!canDelete)
             }
         }
         .padding(12)
