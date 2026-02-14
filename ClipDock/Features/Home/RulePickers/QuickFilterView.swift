@@ -10,8 +10,10 @@ struct QuickFilterView: View {
 
     @State private var selectedMonths: Set<MonthKey> = []
     @State private var nText: String = ""
+    @State private var expandedYears: Set<Int> = []
 
     var body: some View {
+        let grouped = MonthSummaryGrouper.group(summaries)
         NavigationStack {
             Form {
                 Section(L10n.tr("By Month")) {
@@ -19,19 +21,62 @@ struct QuickFilterView: View {
                         Text(L10n.tr("Scan Videos"))
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(summaries) { s in
+                        ForEach(grouped.yearGroups) { g in
+                            DisclosureGroup(
+                                isExpanded: Binding(
+                                    get: { expandedYears.contains(g.year) },
+                                    set: { isExpanded in
+                                        if isExpanded {
+                                            expandedYears.insert(g.year)
+                                        } else {
+                                            expandedYears.remove(g.year)
+                                        }
+                                    }
+                                )
+                            ) {
+                                ForEach(g.months) { s in
+                                    Button {
+                                        toggleMonth(s.key)
+                                    } label: {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(s.key.displayText)
+                                                Text(verbatim: "\(s.count)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            Spacer()
+                                            if selectedMonths.contains(s.key) {
+                                                Image(systemName: "checkmark")
+                                                    .foregroundStyle(.tint)
+                                            }
+                                        }
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    Text(verbatim: "\(g.year)")
+                                    Spacer()
+                                    Text(verbatim: "\(g.totalCount)")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        if let unknown = grouped.unknown {
                             Button {
-                                toggleMonth(s.key)
+                                toggleMonth(unknown.key)
                             } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(s.key.displayText)
-                                        Text(verbatim: "\(s.count)")
+                                        Text(unknown.key.displayText)
+                                        Text(verbatim: "\(unknown.count)")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    if selectedMonths.contains(s.key) {
+                                    if selectedMonths.contains(unknown.key) {
                                         Image(systemName: "checkmark")
                                             .foregroundStyle(.tint)
                                     }
@@ -113,4 +158,3 @@ struct QuickFilterView: View {
             .buttonStyle(.bordered)
     }
 }
-
