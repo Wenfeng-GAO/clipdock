@@ -21,3 +21,6 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+
+# Local screenshots (generated for simulator demos)
+docs/screenshots/

@@ -22,38 +22,27 @@
 3. 删除更克制：删除入口在迁移完成后出现，且仅在满足权限与校验条件时可用。
 
 ### 2.2 页面结构（单页）
-建议从现有 `List + 多 Section` 调整为“顶部状态卡 + 列表 + 底部操作区”的结构：
+当前实现为“卡片式单页 + 底部操作区”：
 
-1. 顶部状态卡（2 张卡片）
-   - 目录卡：已选目录、可写状态、`Choose` / `Recheck` 按钮
-   - 权限卡：相册权限状态、`Grant` 按钮
-2. 扫描与排序卡
-   - `Scan Videos` CTA
-   - 排序 `Date/Size`（保持 segmented）
-   - `Loading sizes...` 次级提示
-3. 选择卡
-   - 手动选择提示 + 统计（已选数量）
-   - 规则选择入口：
-     - `By Month...`（弹层 Month Picker）
-     - `Top N...`（弹层 N 输入 + 应用）
-   - `Show selected only`、`Select all`、`Clear`
-4. 列表（虚拟化）
-   - 仅负责展示与勾选，不承载迁移/删除按钮
-5. 底部操作区（sticky）
-   - Primary：`Start Migration`
-   - Secondary：`Delete Migrated Originals`（仅在迁移完成且 deletable>0 时可用）
-   - Progress：进度条 + 当前文件名（迁移中）
-   - 结果摘要：成功/失败数（迁移后）
+1. 目录卡
+   - 已选目录、可写状态、`Choose` / `Recheck`。
+2. 扫描与选择卡（Scan & Select）
+   - `Scan Videos` CTA（当授权状态为 `notDetermined` 时会触发系统弹窗；拒绝时给出提示）。
+   - 统计：视频数量、已选数量、已选总大小（best-effort）。
+   - 入口：`Select All` / `Quick Filter` / `Clear`、`Show selected only`。
+3. 列表卡（Video List）
+   - 列表顶部提供排序：字段 `Date/Size`（segmented）+ 正/倒序按钮。
+   - 列表行支持点选切换选择；size 异步补齐。
+4. 底部操作区（sticky）
+   - `Start Migration` / `Delete Originals`。
+   - 迁移中：进度条 + completed/total + 当前文件名。
+   - 迁移后：成功/失败摘要 + 失败列表入口。
+   - 状态策略：迁移完成且可删时，Start 置灰，Delete 变为强调态；删除后 Delete 置灰。
 
-### 2.3 弹层 A：按月份选择（Month Picker）
-1. 数据来源：扫描完成后按 `creationDate` 生成 `YYYY-MM` 分组。
-2. 展示：月份列表（YYYY-MM）+ 视频数量；支持多选月份。
-3. 动作：`Apply` 将所选月份的全部视频加入选中集合；`Clear` 清空月份选择。
-
-### 2.4 弹层 B：最大 N（Top-N Picker）
-1. 输入：N（快捷按钮 20/50/100 + 自定义输入）。
-2. 规则：对“当前排序结果”取前 N（如果启用“仅看已选”，则对过滤后的列表取前 N）。
-3. 说明：当排序为 `Size` 时，未知 size 的视频排在底部，Top-N 默认只会命中已知 size 的条目。
+### 2.3 弹层：快捷筛选（Quick Filter）
+1. 按月份：按“年份 -> 月份”分组展示（DisclosureGroup），并支持多选月份。
+2. Top-N：输入 N（20/50/100 快捷），基于本地可得 size 的 “largest first”。
+3. 动作：`Cancel / Apply`，且 `Apply` 仅在用户设置了筛选条件时可用。
 
 ## 3. 后端实现方式（MVVM + Services）
 
@@ -86,6 +75,7 @@
 ### 3.5 size 获取与 Top-N 边界
 1. size 读取使用 public API，且 `isNetworkAccessAllowed=false`，不会触发 iCloud 下载。
 2. Top-N 选择与大小排序不强制要求 size 全量完成；未知 size 统一视为“排序靠后”，并在 UI 里显示 `--`。
+3. 1.0 为了让“大小排序”更确定，扫描完成后会后台预取全库本地 size（best-effort）。
 
 ### 3.6 迁移与删除
 1. 迁移：保持“导出到临时目录 -> `NSFileCoordinator` 写入目标目录”，持有 security scope 覆盖整个迁移任务。
@@ -124,7 +114,7 @@
 ### 2026-02-13 - 规则选择（按月份 / Top-N）+ 去除 History 入口
 1. 交付：
    - 新增规则选择服务 `SelectionRulesService`（按月份分组 + Top-N 选择）。
-   - UI 增加 `By Month...` / `Top N...` 弹层入口。
+   - UI 增加 `By Month...` / `Top N...` 弹层入口（后续在 1.0 收敛为 `Quick Filter`）。
    - 移除 `History` 相关 UI 入口（按 1.0 形态要求）。
 2. 关键文件：
    - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Services/Selection/SelectionRulesService.swift`
@@ -195,3 +185,31 @@
    - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Resources/zh-Hans.lproj/Localizable.strings`
 3. 验证：
    - `xcodebuild test`（Simulator）：16 tests / 0 failure。
+
+### 2026-02-14 - 视觉收敛：移除 Home 大标题
+1. 交付：
+   - Home 页面移除导航标题 “ClipDock”，减少无效占位，保留右上角 `info` 入口。
+2. 关键文件：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/HomeView.swift`
+3. 验证：
+   - `xcodebuild test`（Simulator）：通过。
+
+### 2026-02-14 - 快捷筛选：月份按年份分组（可折叠）
+1. 交付：
+   - `Quick Filter` 的月份列表按 `Year -> Months` 分组展示，支持展开/收起，缓解月份列表过长问题。
+   - 新增单测覆盖长列表（6 年 * 12 月 + unknown）。
+2. 关键文件：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/RulePickers/MonthSummaryGrouper.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/RulePickers/QuickFilterView.swift`
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDockTests/MonthSummaryGrouperTests.swift`
+3. 验证：
+   - `xcodebuild test`（Simulator）：通过。
+
+### 2026-02-14 - 迁移操作条：完成后引导删除
+1. 交付：
+   - 迁移完成且存在可删条目时：`Start Migration` 置灰，`Delete Originals` 变为强调态（红色）。
+   - 删除完成并触发 rescan 后：`Delete Originals` 置灰。
+2. 关键文件：
+   - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Features/Home/MigrationActionBar.swift`
+3. 验证：
+   - `xcodebuild test`（Simulator）：通过。
