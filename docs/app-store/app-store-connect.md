@@ -35,12 +35,13 @@ Optional localizations:
 
 1. Price: Free.
 2. Availability / Territories:
-   - China (Mainland) only (for a fast, focused first release).
+   - China (Mainland) + United States (fast first release, avoids EU-specific compliance).
 
 Note:
 - China (Mainland) may require additional compliance info (e.g. ICP/filing related fields shown in App Information for China).
   If App Store Connect blocks "China (Mainland)" without these, the fastest workaround is:
-  - Ship to non-mainland territories first (e.g. Hong Kong / Macau / Taiwan / Singapore), then add China (Mainland) after compliance is complete.
+  - Ship to United States first, then add China (Mainland) after compliance is complete.
+  - (Alternative) Ship to non-mainland territories first (e.g. Hong Kong / Macau / Taiwan / Singapore), then add China (Mainland).
 
 ## 3. App Information
 
