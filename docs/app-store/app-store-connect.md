@@ -1,6 +1,6 @@
-# ClipDock App Store Submission Checklist (Pre-1.0)
+# ClipDock App Store Submission Checklist (1.0)
 
-This file is a practical, copy/paste oriented checklist for submitting ClipDock to the App Store.
+This file is a practical, copy/paste oriented checklist for submitting **ClipDock 1.0** to the App Store.
 
 ## URLs (ready to use)
 
@@ -14,7 +14,10 @@ This file is a practical, copy/paste oriented checklist for submitting ClipDock 
 1. Apple Developer Program membership: Active.
 2. Bundle ID: `com.wenfeng.clipdock`.
 3. Target devices: iPhone-only (first release).
-4. App pricing: Free (can change later).
+4. App pricing: Free.
+5. Release version:
+   - Version: `1.0.0`
+   - Build: increment as needed for each upload (`CFBundleVersion`).
 
 ## 1. App Store Connect: Create App Record
 
@@ -54,6 +57,10 @@ Suggested answers:
 - Data used to track you: No.
 - Data collected: No.
 
+Also check:
+- IDFA: not used.
+- Ads: not shown.
+
 ## 5. Build Upload
 
 In Xcode:
@@ -71,24 +78,30 @@ Paste something like this in "Review Notes":
 - ClipDock copies selected videos from the Photos library to a folder chosen via the Files app.
 - External drive is optional for review: you can choose a local folder (On My iPhone) in Files as the destination.
 - Steps to test:
-  1) Grant Photos access.
-  2) Tap "Choose External Folder" and select a folder in Files.
-  3) Tap "Scan Videos", select 1-2 videos, then tap "Start Migration".
+  1) Tap "Choose External Folder" and select a folder in Files (On My iPhone is fine).
+  2) Tap "Scan Videos".
+  3) Select 1-2 videos (tap rows), then tap "Start Migration".
   4) Verify the exported file exists in the selected folder.
-  5) Optional: After migration, tap "Delete Migrated Originals" (only deletes items migrated+validated in the last run).
+  5) Optional: After migration completes, tap "Delete Originals" (only deletes items migrated+validated in the last run; requires Full Photos access).
 
 ## 7. Screenshots (plan)
 
 For the first submission, prepare screenshots for required iPhone sizes.
 
 Recommended set:
-1. Home screen (folder selected + scan + sort).
-2. Video list with selection.
-3. Migration in progress.
-4. Migration completed (post-migration).
-5. History screen.
+1. Home screen (folder selected + scan + selection + selected size).
+2. Quick Filter (year grouped months + Top-N).
+3. Video list (sorted by size).
+4. Migration in progress (progress + filename).
+5. Migration completed (Start disabled, Delete highlighted).
 
 ## 8. Known Constraints (transparent)
 
 - iOS does not allow moving a Photos item directly. ClipDock does copy to destination and then (optionally) deletes originals after user confirmation.
 - Video size display is best-effort and may show `--` for iCloud-only assets until downloaded/exported.
+- iOS background execution is limited. Migration is most reliable when ClipDock stays in the foreground.
+
+## 9. Export Compliance
+
+Suggested answers (confirm on each release):
+- Uses encryption? No.
