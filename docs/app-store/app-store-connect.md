@@ -35,12 +35,12 @@ Optional localizations:
 
 1. Price: Free.
 2. Availability / Territories:
-   - China (Mainland)
-   - English-speaking markets (suggested minimum): United States, United Kingdom, Canada, Australia, New Zealand, Ireland
-   - Optional: Singapore
+   - China (Mainland) only (for a fast, focused first release).
 
 Note:
-- If China (Mainland) submission is blocked by additional compliance requirements, unselect China temporarily and ship to other territories first.
+- China (Mainland) may require additional compliance info (e.g. ICP/filing related fields shown in App Information for China).
+  If App Store Connect blocks "China (Mainland)" without these, the fastest workaround is:
+  - Ship to non-mainland territories first (e.g. Hong Kong / Macau / Taiwan / Singapore), then add China (Mainland) after compliance is complete.
 
 ## 3. App Information
 
