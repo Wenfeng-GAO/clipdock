@@ -45,11 +45,9 @@ final class HomeViewModel: ObservableObject {
     @Published var sortMode: VideoSortMode = .dateDesc {
         didSet {
             applySort()
-            switch sortMode {
-            case .sizeAsc, .sizeDesc:
-                prefetchSizesForSortingIfNeeded()
-            case .dateAsc, .dateDesc:
-                prefetchSizesForVisibleRangeIfNeeded()
+            if sortMode == .sizeAsc || sortMode == .sizeDesc {
+                // To make size sorting deterministic, ensure sizes are prepared for the whole scan.
+                Task { await prefetchSizesForAllScannedVideosIfNeeded() }
             }
         }
     }
@@ -64,12 +62,8 @@ final class HomeViewModel: ObservableObject {
     @Published var listVisibleLimit: Int = 20
     @Published var showSelectedOnly: Bool = false {
         didSet {
-            switch sortMode {
-            case .sizeAsc, .sizeDesc:
-                prefetchSizesForSortingIfNeeded()
-            case .dateAsc, .dateDesc:
-                prefetchSizesForVisibleRangeIfNeeded()
-            }
+            // Keep best-effort sizes visible as the visible set changes.
+            prefetchSizesForVisibleRangeIfNeeded()
         }
     }
 
@@ -195,12 +189,8 @@ final class HomeViewModel: ObservableObject {
             isScanningVideos = false
             rebuildMonthIndex()
 
-            switch sortMode {
-            case .sizeAsc, .sizeDesc:
-                prefetchSizesForSortingIfNeeded()
-            case .dateAsc, .dateDesc:
-                prefetchSizesForVisibleRangeIfNeeded()
-            }
+            // Prepare sizes in the background so "Sort by Size" works immediately and correctly.
+            await prefetchSizesForAllScannedVideosIfNeeded()
         }
     }
 
@@ -275,6 +265,8 @@ final class HomeViewModel: ObservableObject {
 
     func ensureSizeLoaded(for assetID: String) {
         guard permissionState.canReadLibrary else { return }
+        // Avoid duplicate per-row fetches when we are already prefetching sizes for the full library.
+        guard !isFetchingAllVideoSizes else { return }
         guard videoSizeBytesByID[assetID] == nil else { return }
         guard !inFlightSizeAssetIDs.contains(assetID) else { return }
         inFlightSizeAssetIDs.insert(assetID)
@@ -317,45 +309,21 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    private func prefetchSizesForSortingIfNeeded() {
-        guard permissionState.canReadLibrary else { return }
-
-        let base = showSelectedOnly ? videos.filter { selectedVideoIDs.contains($0.id) } : videos
-        let ids = Array(base.prefix(200).map(\.id))
-        guard !ids.isEmpty else { return }
-
-        let missing = ids.filter { videoSizeBytesByID[$0] == nil && !inFlightSizeAssetIDs.contains($0) }
-        guard !missing.isEmpty else { return }
-
-        isFetchingVideoSizes = true
-        missing.forEach { inFlightSizeAssetIDs.insert($0) }
-        Task {
-            let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: missing)
-            for (id, bytes) in sizes {
-                videoSizeBytesByID[id] = bytes
-            }
-            missing.forEach { inFlightSizeAssetIDs.remove($0) }
-            isFetchingVideoSizes = false
-
-            if sortMode != .dateDesc && sortMode != .dateAsc {
-                applySort()
-            }
-        }
-    }
-
     private func prefetchSizesForAllScannedVideosIfNeeded() async {
         guard permissionState.canReadLibrary else { return }
+        guard !isFetchingAllVideoSizes else { return }
         let allIDs = videos.map(\.id)
-        let missing = allIDs.filter { videoSizeBytesByID[$0] == nil && !inFlightSizeAssetIDs.contains($0) }
+        // Don't exclude in-flight IDs here. Full prefetch should attempt all unknown sizes at least once.
+        let missing = allIDs.filter { videoSizeBytesByID[$0] == nil }
         guard !missing.isEmpty else { return }
 
         isFetchingAllVideoSizes = true
-        missing.forEach { inFlightSizeAssetIDs.insert($0) }
+        isFetchingVideoSizes = true
         let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: missing)
         for (id, bytes) in sizes {
             videoSizeBytesByID[id] = bytes
         }
-        missing.forEach { inFlightSizeAssetIDs.remove($0) }
+        isFetchingVideoSizes = false
         isFetchingAllVideoSizes = false
 
         if sortMode != .dateDesc && sortMode != .dateAsc {
@@ -438,9 +406,6 @@ final class HomeViewModel: ObservableObject {
         let total = showSelectedOnly ? videos.filter { selectedVideoIDs.contains($0.id) }.count : videos.count
         listVisibleLimit = min(listVisibleLimit + 20, total)
         prefetchSizesForVisibleRangeIfNeeded()
-        if sortMode != .dateDesc && sortMode != .dateAsc {
-            prefetchSizesForSortingIfNeeded()
-        }
     }
 
     // MARK: - Migration (M5 minimal)

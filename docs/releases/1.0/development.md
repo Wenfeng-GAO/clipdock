@@ -171,3 +171,12 @@
    - `/Users/wenfeng/Documents/iphoneapp/ClipDock/Resources/zh-Hans.lproj/Localizable.strings`
 4. 验证：
    - `xcodebuild test`（Simulator）：16 tests / 0 failure。
+
+### 2026-02-14 - Bugfix：大小排序依赖 Top-N 才正确
+1. 现象：直接切换到“按大小排序”时排序不稳定/不正确；执行一次 `Top N` 选择后（触发全量 size 预取）才变正确。
+2. 根因：此前 size 预取仅覆盖前 200 条，导致大库下 size 排序缺少足够的 size 数据。
+3. 修复：
+   - 扫描完成后自动后台预取“本地可得”的全部视频 size（不触发 iCloud 下载），保证 size 排序可用且更确定。
+   - size 排序模式下也会兜底触发全量 size 预取。
+4. 验证：
+   - `xcodebuild test`（Simulator）：回归新增/更新 `HomeViewModelSortAndSizeTests` 覆盖扫描后全量 size 预取。

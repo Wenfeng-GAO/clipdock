@@ -2,7 +2,7 @@ import XCTest
 @testable import ClipDock
 
 final class HomeViewModelSortAndSizeTests: XCTestCase {
-    func testPrefetchSizeCappedAt200() async {
+    func testScanVideosPrefetchesAllLocalVideoSizes() async {
         let permission = MockPhotoPermissionService()
         permission.status = .authorized
 
@@ -38,14 +38,14 @@ final class HomeViewModelSortAndSizeTests: XCTestCase {
         }
 
         await TestWait.until {
-            await MainActor.run { !vm.isScanningVideos && !vm.isFetchingVideoSizes }
+            await MainActor.run { !vm.isScanningVideos && !vm.isFetchingAllVideoSizes }
         }
 
         XCTAssertEqual(videoLibrary.fetchVideosCallCount, 1)
         XCTAssertEqual(videoLibrary.fetchSizesCalls.count, 1)
-        XCTAssertEqual(videoLibrary.fetchSizesCalls[0].count, 200)
+        XCTAssertEqual(videoLibrary.fetchSizesCalls[0].count, 250)
         XCTAssertEqual(videoLibrary.fetchSizesCalls[0].first, "id-0")
-        XCTAssertEqual(videoLibrary.fetchSizesCalls[0].last, "id-199")
+        XCTAssertEqual(videoLibrary.fetchSizesCalls[0].last, "id-249")
     }
 
     func testSortBySizeDescendingUnknownsAtBottom() async {
