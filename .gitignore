@@ -24,3 +24,6 @@ xcuserdata/
 
 # Local screenshots (generated for simulator demos)
 docs/screenshots/
+
+# App Store screenshots (local export)
+docs/app-store/screenshots/

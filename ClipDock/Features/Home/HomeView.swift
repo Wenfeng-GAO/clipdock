@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct HomeView: View {
-    @StateObject private var viewModel = HomeViewModel()
+    @StateObject private var viewModel: HomeViewModel
     @State private var isShowingFolderPicker = false
     @State private var isShowingQuickFilter = false
     @State private var isShowingFailures = false
@@ -19,6 +19,15 @@ struct HomeView: View {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         return "\(version) (\(build))"
+    }
+
+    @MainActor
+    init() {
+        _viewModel = StateObject(wrappedValue: HomeViewModel.makeForCurrentEnvironment())
+    }
+
+    init(viewModel: HomeViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
     }
 
     var body: some View {

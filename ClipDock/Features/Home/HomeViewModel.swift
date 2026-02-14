@@ -112,12 +112,41 @@ final class HomeViewModel: ObservableObject {
         self.selectionRulesService = selectionRulesService
     }
 
+    @MainActor
+    static func makeForCurrentEnvironment() -> HomeViewModel {
+        #if DEBUG
+        #if targetEnvironment(simulator)
+        if ScreenshotMode.isEnabled {
+            let library = ScreenshotVideoLibraryService()
+            return HomeViewModel(
+                photoPermissionService: ScreenshotPhotoPermissionService(),
+                externalStorageService: ScreenshotExternalStorageService(),
+                videoLibraryService: library,
+                videoMigrationService: ScreenshotVideoMigrationService(),
+                photoDeletionService: ScreenshotPhotoDeletionService(),
+                selectionRulesService: SelectionRulesService()
+            )
+        }
+        #endif
+        #endif
+        return HomeViewModel()
+    }
+
     func loadInitialDataIfNeeded() {
         guard !hasLoadedInitialData else { return }
         hasLoadedInitialData = true
 
         permissionState = photoPermissionService.currentStatus()
         loadSavedFolderIfExists()
+
+        #if DEBUG
+        #if targetEnvironment(simulator)
+        if ScreenshotMode.isEnabled {
+            // Populate a ready-to-screenshot state.
+            scanVideos()
+        }
+        #endif
+        #endif
     }
 
     func requestPhotoAccess() {
@@ -195,6 +224,17 @@ final class HomeViewModel: ObservableObject {
 
             // Prepare sizes in the background so "Sort by Size" works immediately and correctly.
             await prefetchSizesForAllScannedVideosIfNeeded()
+
+            #if DEBUG
+            #if targetEnvironment(simulator)
+            if ScreenshotMode.isEnabled {
+                // Make the screenshot more informative by showing size sort + non-zero selection.
+                sortMode = .sizeDesc
+                selectedVideoIDs = Set(videos.prefix(3).map(\.id))
+                recomputeSelectedSizeTotals()
+            }
+            #endif
+            #endif
         }
     }
 
