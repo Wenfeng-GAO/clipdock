@@ -52,7 +52,7 @@ struct MonthPickerView: View {
             .navigationTitle(L10n.tr("Select by Month"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(L10n.tr("Done")) {
+                    Button(L10n.tr("Cancel")) {
                         onDone()
                     }
                 }

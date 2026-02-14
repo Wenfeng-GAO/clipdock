@@ -3,8 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @State private var isShowingFolderPicker = false
-    @State private var isShowingMonthPicker = false
-    @State private var isShowingTopNPicker = false
+    @State private var isShowingQuickFilter = false
     @State private var isShowingFailures = false
     @State private var isShowingAbout = false
 
@@ -66,27 +65,18 @@ struct HomeView: View {
                     isShowingFolderPicker = false
                 }
             }
-            .sheet(isPresented: $isShowingMonthPicker) {
-                MonthPickerView(
+            .sheet(isPresented: $isShowingQuickFilter) {
+                QuickFilterView(
                     summaries: viewModel.monthSummaries,
-                    onApply: { keys in
-                        viewModel.applyMonthSelection(keys)
-                    },
-                    onDone: {
-                        isShowingMonthPicker = false
-                    }
-                )
-            }
-            .sheet(isPresented: $isShowingTopNPicker) {
-                TopNPickerView(
                     isFetchingAllVideoSizes: viewModel.isFetchingAllVideoSizes,
                     knownSizeCount: viewModel.videoSizeBytesByID.count,
                     totalVideoCount: viewModel.videos.count,
-                    onApply: { n in
-                        viewModel.applyTopNSelection(n)
+                    onCancel: {
+                        isShowingQuickFilter = false
                     },
-                    onDone: {
-                        isShowingTopNPicker = false
+                    onApply: { months, topN in
+                        viewModel.applyQuickFilter(months: months, topN: topN)
+                        isShowingQuickFilter = false
                     }
                 )
             }
@@ -269,27 +259,31 @@ struct HomeView: View {
             }
 
             if !viewModel.videos.isEmpty {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(L10n.tr("Selected Size"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 12)
+                    Text(viewModel.selectedTotalSizeText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                if viewModel.selectedKnownSizeCount < viewModel.selectedVideoIDs.count {
+                    Text(
+                        verbatim: L10n.tr(
+                            "Known sizes: %d/%d",
+                            viewModel.selectedKnownSizeCount,
+                            viewModel.selectedVideoIDs.count
+                        )
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+
                 Text(L10n.tr("Tip: tap a row to toggle selection."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-
-                HStack(spacing: 12) {
-                    Button {
-                        isShowingMonthPicker = true
-                    } label: {
-                        Label(L10n.tr("By Month..."), systemImage: "calendar")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        isShowingTopNPicker = true
-                    } label: {
-                        Label(L10n.tr("Top N..."), systemImage: "arrow.up.right.circle")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
 
                 Toggle(L10n.tr("Show Selected Only"), isOn: $viewModel.showSelectedOnly)
 
@@ -303,15 +297,24 @@ struct HomeView: View {
                     .buttonStyle(.bordered)
 
                     Button {
-                        viewModel.clearSelection()
+                        isShowingQuickFilter = true
                     } label: {
-                        Text(L10n.tr("Clear"))
+                        Text(L10n.tr("Quick Filter"))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .tint(.secondary)
-                    .disabled(viewModel.selectedVideoIDs.isEmpty)
                 }
+
+                let canClear = !viewModel.selectedVideoIDs.isEmpty
+                Button {
+                    viewModel.clearSelection()
+                } label: {
+                    Text(L10n.tr("Clear"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(canClear ? Color.accentColor : .secondary)
+                .disabled(!canClear)
             }
         }
     }
