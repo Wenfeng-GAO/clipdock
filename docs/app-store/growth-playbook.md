@@ -114,3 +114,29 @@ Primary goals (first 30 days):
 2. Keep one canonical tracking link per channel.
 3. Every feedback item must end in one of: fix / doc / reject with reason.
 4. Growth content must demonstrate real workflow (before -> action -> result).
+
+## 5. Recommended Launch Bundle (Ready to Paste)
+
+Use this as the first 2-week baseline, then iterate by data.
+
+### `en-US`
+
+- Subtitle:
+  - `Move Videos, Free Up iPhone`
+- Keywords:
+  - `video,transfer,photos,storage,export,external drive,iphone cleanup,backup,offload`
+- Description opening (first lines):
+  - `Free up iPhone storage by exporting videos from Photos to Files or external storage.`
+  - `Sort by date or size, select what you need, and migrate with clear progress.`
+  - `Delete originals only after successful export verification.`
+
+### `zh-Hans`
+
+- 副标题：
+  - `导出相册视频，释放iPhone空间`
+- 关键词：
+  - `视频迁移,相册导出,外接存储,释放空间,iPhone清理,大视频,文件App,视频备份`
+- 描述开头（前几行）：
+  - `将相册视频导出到“文件”或外接存储，快速释放 iPhone 空间。`
+  - `支持按日期/大小排序，手动选择、全选和快捷筛选。`
+  - `仅在导出成功后才建议删除原视频，更安全。`
