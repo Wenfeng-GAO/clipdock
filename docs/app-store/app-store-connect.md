@@ -16,12 +16,13 @@ This file is a practical, copy/paste oriented checklist for submitting **ClipDoc
 3. Target devices: iPhone-only (first release).
 4. App pricing: Free.
 5. Release version:
-   - Version: `1.0.0`
+   - Version: `1.0.1`
    - Build: increment as needed for each upload (`CFBundleVersion`).
 
 ## Submission Record
 
 - 2026-02-14: Submitted `1.0.0 (9)` for review. Status: Waiting for Review.
+- 2026-02-19: Submitted `1.0.1 (10)` for review. Status: Waiting for Review.
 
 ## 1. App Store Connect: Create App Record
 
