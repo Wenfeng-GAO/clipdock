@@ -18,6 +18,12 @@ Data source: App Store Connect -> App Analytics
 Write baseline to:
 - `/Users/wenfeng/Documents/iphoneapp/docs/app-store/metrics-template.csv`
 
+If App Analytics has no data yet:
+- [ ] Continue with Section 1/2/4 immediately (ASO + screenshots + content distribution).
+- [ ] Set a reminder to re-check analytics in 48 hours.
+- [ ] Use temporary baseline: App Store ratings count + installs visible in App Store Connect trend pages.
+- [ ] Once analytics appears, backfill Day-0 row in metrics CSV.
+
 ## 1. ASO Iteration (every 2 weeks)
 
 Where to edit:
@@ -84,6 +90,7 @@ Rules:
 Done definition:
 - [ ] At least 1 CN + 1 US channel published each week
 - [ ] Weekly source contribution reviewed in analytics
+- [ ] Published post links logged in `/Users/wenfeng/Documents/iphoneapp/docs/app-store/channel-post-log.md`
 
 ## 5. Optional Apple Ads (7-day test)
 
@@ -112,4 +119,3 @@ Implement in next app updates:
 Done definition:
 - [ ] PRD items created as GitHub issues
 - [ ] Prioritized into next release (`1.0.2+`)
-

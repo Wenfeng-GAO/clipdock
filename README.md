@@ -18,6 +18,8 @@ ClipDock is an iOS app that helps you copy selected videos from iPhone Photos to
 - Growth playbook: [docs/app-store/growth-playbook.md](docs/app-store/growth-playbook.md)
 - Growth execution checklist: [docs/app-store/growth-execution.md](docs/app-store/growth-execution.md)
 - Growth metrics template: [docs/app-store/metrics-template.csv](docs/app-store/metrics-template.csv)
+- Channel content pack: [docs/app-store/channel-content-pack.md](docs/app-store/channel-content-pack.md)
+- Channel post log: [docs/app-store/channel-post-log.md](docs/app-store/channel-post-log.md)
 
 ## Key Features (1.0)
 
