@@ -65,6 +65,8 @@ final class MockVideoLibraryService: VideoLibraryServicing {
 final class MockVideoMigrationService: VideoMigrating {
     private(set) var migrateCalls: [([String], URL)] = []
     var resultToReturn: MigrationRunResult = .init(successes: [], failures: [])
+    var progressUpdatesToEmit: [MigrationProgress] = []
+    var completionDelayNanoseconds: UInt64 = 0
 
     func migrateVideoAssetIDs(
         _ assetIDs: [String],
@@ -73,7 +75,16 @@ final class MockVideoMigrationService: VideoMigrating {
         onResult: @escaping @Sendable (MigrationRunResult) -> Void
     ) async {
         migrateCalls.append((assetIDs, targetFolderURL))
-        progress(.init(completed: assetIDs.count, total: assetIDs.count, currentFilename: nil, isIndeterminate: false))
+        if progressUpdatesToEmit.isEmpty {
+            progress(.init(completed: assetIDs.count, total: assetIDs.count, currentFilename: nil, isIndeterminate: false))
+        } else {
+            for update in progressUpdatesToEmit {
+                progress(update)
+            }
+        }
+        if completionDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: completionDelayNanoseconds)
+        }
         onResult(resultToReturn)
     }
 }
@@ -110,4 +121,3 @@ enum TestWait {
         }
     }
 }
-
