@@ -77,4 +77,48 @@ final class HomeViewModelGuardrailTests: XCTestCase {
         vm.selectAllScannedVideos()
         XCTAssertEqual(vm.selectedVideoIDs.count, 5000)
     }
+
+    func testScanVideosShowsWorkingStateWhileInFlight() async {
+        let library = MockVideoLibraryService()
+        library.fetchVideosResult = [.init(id: "A", creationDate: .now, duration: 1, pixelWidth: 1, pixelHeight: 1)]
+        library.fetchVideosDelayNanoseconds = 300_000_000
+
+        let vm = HomeViewModel(
+            photoPermissionService: MockPhotoPermissionService(),
+            externalStorageService: MockExternalStorageService(),
+            videoLibraryService: library,
+            videoMigrationService: MockVideoMigrationService(),
+            photoDeletionService: MockPhotoDeletionService()
+        )
+        vm.permissionState = .authorized
+
+        vm.scanVideos()
+
+        XCTAssertTrue(vm.isScanningVideos)
+        await TestWait.until { @MainActor in !vm.isScanningVideos }
+        XCTAssertEqual(vm.videos.count, 1)
+    }
+
+    func testScanVideosWhileScanningDoesNotStartAnotherFetch() async {
+        let library = MockVideoLibraryService()
+        library.fetchVideosResult = [.init(id: "A", creationDate: .now, duration: 1, pixelWidth: 1, pixelHeight: 1)]
+        library.fetchVideosDelayNanoseconds = 300_000_000
+
+        let vm = HomeViewModel(
+            photoPermissionService: MockPhotoPermissionService(),
+            externalStorageService: MockExternalStorageService(),
+            videoLibraryService: library,
+            videoMigrationService: MockVideoMigrationService(),
+            photoDeletionService: MockPhotoDeletionService()
+        )
+        vm.permissionState = .authorized
+
+        vm.scanVideos()
+        await TestWait.until { @MainActor in vm.isScanningVideos }
+        vm.scanVideos()
+
+        await TestWait.until { @MainActor in library.fetchVideosCallCount == 1 }
+        await TestWait.until { @MainActor in !vm.isScanningVideos }
+        XCTAssertEqual(library.fetchVideosCallCount, 1)
+    }
 }
