@@ -181,6 +181,8 @@ final class HomeViewModel: ObservableObject {
     }
 
     func scanVideos() {
+        guard !isScanningVideos else { return }
+
         if permissionState == .notDetermined {
             Task {
                 let status = await photoPermissionService.requestReadWriteAccess()

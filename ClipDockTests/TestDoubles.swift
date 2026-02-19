@@ -40,12 +40,16 @@ final class MockExternalStorageService: ExternalStorageServicing {
 final class MockVideoLibraryService: VideoLibraryServicing {
     var fetchVideosResult: [VideoAssetSummary] = []
     private(set) var fetchVideosCallCount = 0
+    var fetchVideosDelayNanoseconds: UInt64 = 0
 
     private(set) var fetchSizesCalls: [[String]] = []
     var fetchSizesResult: [String: Int64] = [:]
 
     func fetchVideosSortedByDate(limit: Int?) async -> [VideoAssetSummary] {
         fetchVideosCallCount += 1
+        if fetchVideosDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: fetchVideosDelayNanoseconds)
+        }
         return fetchVideosResult
     }
 
