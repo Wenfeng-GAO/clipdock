@@ -155,3 +155,21 @@
 "After deletion, originals go to Recently Deleted and can be restored for 30 days." = "删除后原片进「最近删除」，30 天内可恢复";
 "About %d min" = "约 %d 分钟";
 "Under 1 min" = "不到 1 分钟";
+
+"ClipDock" = "ClipDock";
+"Videos to free" = "视频可腾出";
+"%@ videos · largest %d use %@" = "%@ 个视频 · 最大 %d 个占 %@";
+"Videos" = "视频";
+"Other" = "其他";
+"Available %@ / %@" = "可用 %@ / %@";
+"■ Videos  ■ Other  ■ Available %@ / %@" = "■ 视频  ■ 其他  ■ 可用 %@ / %@";
+"Pick the %d largest videos" = "挑最大的 %d 个视频";
+"Choose myself" = "自己挑";
+"USB Drive" = "U 盘";
+"USB Drive · %@" = "U 盘 · %@";
+"Change ›" = "更换 ›";
+"Writable ✓ · %@ free" = "可写 ✓ · 剩余 %@";
+"Not writable · %@ free" = "不可写 · 剩余 %@";
+"Writable ✓" = "可写 ✓";
+"Not writable" = "不可写";
+"Capacity Unknown" = "--";
