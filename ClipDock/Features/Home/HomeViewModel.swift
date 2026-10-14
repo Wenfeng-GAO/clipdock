@@ -16,6 +16,16 @@ enum VideoSortMode: String, CaseIterable, Identifiable {
         case .sizeAsc: L10n.tr("Size (Smallest)")
         }
     }
+
+    /// Short label for the picker sort menu. Direction lives in the menu items.
+    var pickerMenuLabel: String {
+        switch self {
+        case .dateDesc, .dateAsc:
+            return L10n.tr("By date ▾")
+        case .sizeDesc, .sizeAsc:
+            return L10n.tr("By size ▾")
+        }
+    }
 }
 
 enum VideoSortField: String, CaseIterable, Identifiable {
@@ -54,6 +64,9 @@ final class HomeViewModel: ObservableObject {
         }
     }
     @Published private(set) var videoSizeBytesByID: [String: Int64] = [:]
+    /// Estimated byte counts for iCloud-only videos (`PHAssetResource.fileSize`). Not used by Top-N.
+    @Published private(set) var cloudEstimatesByID: [String: Int64] = [:]
+    @Published private(set) var cloudOnlyAssetIDs: Set<String> = []
     @Published private(set) var isFetchingVideoSizes = false
     @Published private(set) var isFetchingAllVideoSizes = false
 
@@ -68,6 +81,9 @@ final class HomeViewModel: ObservableObject {
             prefetchSizesForVisibleRangeIfNeeded()
         }
     }
+
+    /// Chip on the picker. Top 20 also selects; year chips only filter the grid.
+    @Published var pickerFilter: PickerFilterChip = .all
 
     // M4: manual selection
     @Published var selectedVideoIDs: Set<String> = []
@@ -213,6 +229,12 @@ final class HomeViewModel: ObservableObject {
         )
     }
 
+    /// 「U 盘剩余 X GB」 for the picker tray. Nil when free space is unknown.
+    var pickerDriveFreeText: String? {
+        guard selectedFolderURL != nil else { return nil }
+        return PickerTrayText.driveFreeText(freeBytes: driveCapacity.availableBytes)
+    }
+
     var driveFolderPath: String? {
         selectedFolderURL?.path
     }
@@ -225,6 +247,12 @@ final class HomeViewModel: ObservableObject {
     /// Preselects the largest videos using `SelectionRulesServicing.topNAssetIDsBySize`, replacing the current selection.
     func selectLargestVideos(count: Int = HomeLibrarySummary.defaultTopN) {
         guard count > 0 else { return }
+        if count == HomeLibrarySummary.defaultTopN {
+            pickerFilter = .top20
+            if sortMode != .sizeDesc {
+                sortMode = .sizeDesc
+            }
+        }
         if permissionState == .denied || permissionState == .restricted {
             scanVideos()
             return
@@ -245,6 +273,8 @@ final class HomeViewModel: ObservableObject {
     }
 
     func prepareManualPick() {
+        pickerFilter = .all
+        pendingTopNSelection = nil
         if permissionState == .denied || permissionState == .restricted {
             scanVideos()
             return
@@ -252,6 +282,32 @@ final class HomeViewModel: ObservableObject {
         if !hasCompletedScan && !isScanningVideos && !isFetchingAllVideoSizes {
             scanVideos()
         }
+    }
+
+    /// Applies a picker chip. Top 20 reuses largest-video selection and shows the whole library.
+    func selectPickerChip(_ chip: PickerFilterChip) {
+        switch chip {
+        case .top20:
+            selectLargestVideos(count: HomeLibrarySummary.defaultTopN)
+        case .year2024, .year2025, .all:
+            pickerFilter = chip
+            pendingTopNSelection = nil
+        }
+    }
+
+    /// Videos the picker grid should render for the active chip.
+    /// Top 20 is largest-first unless the sort menu is on another mode.
+    func pickerVisibleVideos(calendar: Calendar) -> [VideoAssetSummary] {
+        if pickerFilter == .top20, sortMode != .sizeDesc {
+            return videos
+        }
+        let sizes = pickerFilter == .top20 ? pickerOrderingSizes() : [:]
+        return PickerFilterChip.visibleVideos(
+            videos,
+            chip: pickerFilter,
+            calendar: calendar,
+            sizesBytesByID: sizes
+        )
     }
 
     func requestPhotoAccess() {
@@ -329,6 +385,8 @@ final class HomeViewModel: ObservableObject {
         migrationTask?.cancel()
         migrationTask = nil
         videoSizeBytesByID = [:]
+        cloudEstimatesByID = [:]
+        cloudOnlyAssetIDs = []
         inFlightSizeAssetIDs = []
         monthSummaries = []
         monthIndex = [:]
@@ -467,6 +525,21 @@ final class HomeViewModel: ObservableObject {
         return formatter.string(fromByteCount: bytes)
     }
 
+    func pickerCellContent(for video: VideoAssetSummary) -> VideoPickerCellContent {
+        let exact = videoSizeBytesByID[video.id]
+        let isCloudOnly = exact == nil && cloudOnlyAssetIDs.contains(video.id)
+        return VideoPickerCellContent.make(
+            durationSeconds: video.duration,
+            exactByteCount: exact,
+            estimateByteCount: isCloudOnly ? cloudEstimatesByID[video.id] : nil,
+            isCloudOnly: isCloudOnly
+        )
+    }
+
+    var pickerRunningTotal: VideoPickerRunningTotal {
+        VideoPickerFormatting.runningTotal(selectedIDs: selectedVideoIDs, sizes: pickerItemSizes())
+    }
+
     var selectedTotalSizeText: String {
         guard selectedKnownSizeCount > 0 else { return "--" }
         let formatter = ByteCountFormatter()
@@ -480,18 +553,16 @@ final class HomeViewModel: ObservableObject {
         // Avoid duplicate per-row fetches when we are already prefetching sizes for the full library.
         guard !isFetchingAllVideoSizes else { return }
         guard videoSizeBytesByID[assetID] == nil else { return }
+        guard !cloudOnlyAssetIDs.contains(assetID) else { return }
         guard !inFlightSizeAssetIDs.contains(assetID) else { return }
         inFlightSizeAssetIDs.insert(assetID)
 
         Task {
             let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: [assetID])
             if let bytes = sizes[assetID] {
-                let wasMissing = (videoSizeBytesByID[assetID] == nil)
-                videoSizeBytesByID[assetID] = bytes
-                if wasMissing, selectedVideoIDs.contains(assetID) {
-                    selectedTotalKnownBytes += bytes
-                    selectedKnownSizeCount += 1
-                }
+                integrateExactSize(assetID: assetID, bytes: bytes)
+            } else {
+                await loadCloudEstimates(for: [assetID])
             }
             inFlightSizeAssetIDs.remove(assetID)
 
@@ -507,7 +578,11 @@ final class HomeViewModel: ObservableObject {
         let ids = Array(displayedVideos.map(\.id))
         guard !ids.isEmpty else { return }
 
-        let missing = ids.filter { videoSizeBytesByID[$0] == nil && !inFlightSizeAssetIDs.contains($0) }
+        let missing = ids.filter {
+            videoSizeBytesByID[$0] == nil
+                && !cloudOnlyAssetIDs.contains($0)
+                && !inFlightSizeAssetIDs.contains($0)
+        }
         guard !missing.isEmpty else { return }
 
         isFetchingVideoSizes = true
@@ -515,13 +590,9 @@ final class HomeViewModel: ObservableObject {
         Task {
             let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: missing)
             for (id, bytes) in sizes {
-                let wasMissing = (videoSizeBytesByID[id] == nil)
-                videoSizeBytesByID[id] = bytes
-                if wasMissing, selectedVideoIDs.contains(id) {
-                    selectedTotalKnownBytes += bytes
-                    selectedKnownSizeCount += 1
-                }
+                integrateExactSize(assetID: id, bytes: bytes)
             }
+            await loadCloudEstimates(for: missing)
             missing.forEach { inFlightSizeAssetIDs.remove($0) }
             isFetchingVideoSizes = false
 
@@ -536,20 +607,16 @@ final class HomeViewModel: ObservableObject {
         guard !isFetchingAllVideoSizes else { return }
         let allIDs = videos.map(\.id)
         // Don't exclude in-flight IDs here. Full prefetch should attempt all unknown sizes at least once.
-        let missing = allIDs.filter { videoSizeBytesByID[$0] == nil }
+        let missing = allIDs.filter { videoSizeBytesByID[$0] == nil && !cloudOnlyAssetIDs.contains($0) }
         guard !missing.isEmpty else { return }
 
         isFetchingAllVideoSizes = true
         isFetchingVideoSizes = true
         let sizes = await videoLibraryService.fetchVideoFileSizesBytes(assetIDs: missing)
         for (id, bytes) in sizes {
-            let wasMissing = (videoSizeBytesByID[id] == nil)
-            videoSizeBytesByID[id] = bytes
-            if wasMissing, selectedVideoIDs.contains(id) {
-                selectedTotalKnownBytes += bytes
-                selectedKnownSizeCount += 1
-            }
+            integrateExactSize(assetID: id, bytes: bytes)
         }
+        await loadCloudEstimates(for: missing)
         isFetchingVideoSizes = false
         isFetchingAllVideoSizes = false
 
@@ -635,8 +702,8 @@ final class HomeViewModel: ObservableObject {
             videos.sort { $0.creationDate < $1.creationDate }
         case .sizeDesc:
             videos.sort { a, b in
-                let sa = videoSizeBytesByID[a.id]
-                let sb = videoSizeBytesByID[b.id]
+                let sa = self.sortByteCount(for: a.id)
+                let sb = self.sortByteCount(for: b.id)
                 if let sa, let sb, sa != sb { return sa > sb }
                 if sa != nil && sb == nil { return true }
                 if sa == nil && sb != nil { return false }
@@ -644,8 +711,8 @@ final class HomeViewModel: ObservableObject {
             }
         case .sizeAsc:
             videos.sort { a, b in
-                let sa = videoSizeBytesByID[a.id]
-                let sb = videoSizeBytesByID[b.id]
+                let sa = self.sortByteCount(for: a.id)
+                let sb = self.sortByteCount(for: b.id)
                 if let sa, let sb, sa != sb { return sa < sb }
                 if sa != nil && sb == nil { return true }
                 if sa == nil && sb != nil { return false }
@@ -1086,6 +1153,82 @@ final class HomeViewModel: ObservableObject {
                 selectedKnownSizeCount += 1
             }
         }
+    }
+
+    /// Exact local bytes when known, otherwise the iCloud `fileSize` estimate.
+    private func sortByteCount(for assetID: String) -> Int64? {
+        if let exact = videoSizeBytesByID[assetID] {
+            return exact
+        }
+        return cloudEstimatesByID[assetID]
+    }
+
+    /// Size map used to order the Top 20 grid. Same bytes as size sorting.
+    private func pickerOrderingSizes() -> [String: Int64] {
+        var sizes: [String: Int64] = [:]
+        sizes.reserveCapacity(videos.count)
+        for video in videos {
+            if let bytes = sortByteCount(for: video.id) {
+                sizes[video.id] = bytes
+            }
+        }
+        return sizes
+    }
+
+    private func pickerItemSizes() -> [String: VideoPickerItemSize] {
+        var sizes: [String: VideoPickerItemSize] = [:]
+        sizes.reserveCapacity(videoSizeBytesByID.count + cloudOnlyAssetIDs.count)
+        for (id, bytes) in videoSizeBytesByID {
+            sizes[id] = VideoPickerItemSize(byteCount: bytes, isEstimate: false)
+        }
+        for id in cloudOnlyAssetIDs where sizes[id] == nil {
+            sizes[id] = VideoPickerItemSize(byteCount: cloudEstimatesByID[id], isEstimate: true)
+        }
+        return sizes
+    }
+
+    private func integrateExactSize(assetID: String, bytes: Int64) {
+        let wasMissing = videoSizeBytesByID[assetID] == nil
+        videoSizeBytesByID[assetID] = bytes
+        if cloudEstimatesByID[assetID] != nil {
+            cloudEstimatesByID[assetID] = nil
+        }
+        if cloudOnlyAssetIDs.contains(assetID) {
+            cloudOnlyAssetIDs.remove(assetID)
+        }
+        if wasMissing, selectedVideoIDs.contains(assetID) {
+            selectedTotalKnownBytes += bytes
+            selectedKnownSizeCount += 1
+        }
+    }
+
+    private func loadCloudEstimates(for assetIDs: [String]) async {
+        let unresolved = assetIDs.filter { videoSizeBytesByID[$0] == nil && !cloudOnlyAssetIDs.contains($0) }
+        guard !unresolved.isEmpty else { return }
+        let estimates = await videoLibraryService.fetchVideoCloudEstimates(assetIDs: unresolved)
+        integrateCloudEstimates(estimates)
+    }
+
+    private func integrateCloudEstimates(_ incoming: [String: VideoCloudEstimate]) {
+        guard !incoming.isEmpty else { return }
+        var estimates = cloudEstimatesByID
+        var cloudIDs = cloudOnlyAssetIDs
+        var changed = false
+        for (id, estimate) in incoming {
+            guard videoSizeBytesByID[id] == nil else { continue }
+            guard estimate.isCloudOnly else { continue }
+            if !cloudIDs.contains(id) {
+                cloudIDs.insert(id)
+                changed = true
+            }
+            if let bytes = estimate.estimatedByteCount, bytes > 0, estimates[id] != bytes {
+                estimates[id] = bytes
+                changed = true
+            }
+        }
+        guard changed else { return }
+        cloudOnlyAssetIDs = cloudIDs
+        cloudEstimatesByID = estimates
     }
 
     private func recomputeSelectedSizeTotals() {
