@@ -7,7 +7,7 @@ struct MigrationActionBar: View {
     @Binding var isShowingFailures: Bool
 
     var body: some View {
-        let canDelete = viewModel.deletableSuccessCount > 0 && !viewModel.isDeleting && !viewModel.isMigrating
+        let canDelete = viewModel.isDeleteEnabled
         let shouldHoldStartForDelete = canDelete
         let canStart = !viewModel.isMigrating &&
             !viewModel.selectedVideoIDs.isEmpty &&
@@ -39,6 +39,11 @@ struct MigrationActionBar: View {
                             .lineLimit(2)
                     }
                 }
+            } else if viewModel.copyEligibility.isVerificationComplete && viewModel.copyEligibility.mismatchCount > 0 {
+                Text(verbatim: viewModel.mismatchRetentionNote)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else if let result = viewModel.lastMigrationResult {
                 HStack(spacing: 12) {
                     Text(verbatim: "\(L10n.tr("Succeeded")): \(result.successCount)")
@@ -71,6 +76,7 @@ struct MigrationActionBar: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canStart)
+                .frame(maxWidth: .infinity)
 
                 Button {
                     viewModel.promptDeleteMigratedOriginals()
@@ -81,12 +87,15 @@ struct MigrationActionBar: View {
                             Text(L10n.tr("Deleting..."))
                         }
                     } else {
-                        Label(L10n.tr("Delete Originals"), systemImage: "trash")
+                        Text(viewModel.deleteOriginalsButtonTitle)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.center)
                     }
                 }
                 .buttonStyle(.bordered)
                 .tint(canDelete ? .red : .secondary)
                 .disabled(!canDelete)
+                .frame(maxWidth: .infinity)
             }
         }
         .padding(12)

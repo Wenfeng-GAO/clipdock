@@ -7,6 +7,7 @@ struct MigrationProgress: Sendable {
     let total: Int
     let currentFilename: String?
     let isIndeterminate: Bool
+    var files: [MigrationFileSnapshot] = []
 
     var fraction: Double {
         guard total > 0 else { return 0 }
@@ -52,9 +53,10 @@ protocol VideoMigrating {
     ) async
 }
 
-/// Minimal v1: export original video resources to a chosen external folder.
-/// Validation/deletion/task history will be layered on later.
+/// Exports original video resources to a chosen external folder, then size-checks each copy.
 struct VideoMigrationService: VideoMigrating {
+    var sizeVerifier: any CopySizeVerifying = CopySizeVerifier()
+
     func migrateVideoAssetIDs(
         _ assetIDs: [String],
         to targetFolderURL: URL,
@@ -87,39 +89,176 @@ struct VideoMigrationService: VideoMigrating {
 
         var successes: [MigrationItemSuccess] = []
         var failures: [MigrationItemFailure] = []
+        var sizeMismatches: [MigrationSizeMismatch] = []
+        var snapshotsByID: [String: MigrationFileSnapshot] = [:]
+        var seenIDs = Set<String>()
 
         // Export sequentially for simplicity and stability.
+        var completedCount = 0
         for index in 0..<assets.count {
+            if Task.isCancelled { break }
+
             let asset = assets.object(at: index)
+            let assetID = asset.localIdentifier
+            seenIDs.insert(assetID)
             let resources = PHAssetResource.assetResources(for: asset)
 
             // Prefer the primary video resource.
             guard let resource = resources.first(where: { $0.type == .video }) ?? resources.first(where: { $0.type == .pairedVideo }) else {
-                failures.append(.init(assetID: asset.localIdentifier, message: VideoMigrationError.noVideoResource.localizedDescription))
-                progress(MigrationProgress(completed: index + 1, total: total, currentFilename: nil, isIndeterminate: false))
+                let message = VideoMigrationError.noVideoResource.localizedDescription
+                failures.append(.init(assetID: assetID, message: message))
+                snapshotsByID[assetID] = MigrationFileSnapshot(
+                    assetID: assetID,
+                    displayName: assetID,
+                    expectedBytes: 0,
+                    actualBytes: nil,
+                    destinationURL: nil,
+                    status: .failed(message)
+                )
+                completedCount += 1
+                progress(makeFileProgress(completed: completedCount, total: total, currentFilename: nil, isIndeterminate: false, assetIDs: assetIDs, snapshotsByID: snapshotsByID))
                 continue
             }
 
             let originalName = resource.originalFilename
             let outputName = makeOutputFilename(asset: asset, originalFilename: originalName)
             let destinationURL = uniqueDestinationURL(folderURL: targetFolderURL, filename: outputName)
+            let preliminaryExpected = AssetResourceByteCount.fileSizeBytes(of: resource) ?? 0
 
-            progress(MigrationProgress(completed: index, total: total, currentFilename: outputName, isIndeterminate: true))
+            snapshotsByID[assetID] = MigrationFileSnapshot(
+                assetID: assetID,
+                displayName: originalName,
+                expectedBytes: preliminaryExpected,
+                actualBytes: nil,
+                destinationURL: nil,
+                status: .copying
+            )
+            progress(makeFileProgress(completed: completedCount, total: total, currentFilename: originalName, isIndeterminate: true, assetIDs: assetIDs, snapshotsByID: snapshotsByID))
 
             do {
-                let bytes = try await export(resource: resource, expectedDuration: asset.duration, to: destinationURL)
-                successes.append(.init(assetID: asset.localIdentifier, destinationURL: destinationURL, bytes: bytes))
+                let written = try await export(resource: resource, to: destinationURL)
+                let verification = sizeVerifier.verify(expectedBytes: written.sourceBytes, at: destinationURL)
+                switch verification {
+                case .match(let bytes):
+                    do {
+                        try await validatePlayableDuration(destinationURL, expectedDuration: asset.duration)
+                        successes.append(.init(
+                            assetID: assetID,
+                            destinationURL: destinationURL,
+                            bytes: bytes,
+                            sourceBytes: written.sourceBytes
+                        ))
+                        snapshotsByID[assetID] = MigrationFileSnapshot(
+                            assetID: assetID,
+                            displayName: originalName,
+                            expectedBytes: written.sourceBytes,
+                            actualBytes: bytes,
+                            destinationURL: destinationURL,
+                            status: .verified
+                        )
+                    } catch {
+                        let message = error.localizedDescription
+                        failures.append(.init(assetID: assetID, message: message))
+                        snapshotsByID[assetID] = MigrationFileSnapshot(
+                            assetID: assetID,
+                            displayName: originalName,
+                            expectedBytes: written.sourceBytes,
+                            actualBytes: bytes,
+                            destinationURL: destinationURL,
+                            status: .failed(message)
+                        )
+                    }
+                case .mismatch(let expected, let actual):
+                    sizeMismatches.append(.init(
+                        assetID: assetID,
+                        destinationURL: destinationURL,
+                        expectedBytes: expected,
+                        actualBytes: actual,
+                        fileWasMissing: false
+                    ))
+                    snapshotsByID[assetID] = MigrationFileSnapshot(
+                        assetID: assetID,
+                        displayName: originalName,
+                        expectedBytes: expected,
+                        actualBytes: actual,
+                        destinationURL: destinationURL,
+                        status: .mismatch(expected: expected, actual: actual)
+                    )
+                case .missingFile(let expected):
+                    sizeMismatches.append(.init(
+                        assetID: assetID,
+                        destinationURL: destinationURL,
+                        expectedBytes: expected,
+                        actualBytes: 0,
+                        fileWasMissing: true
+                    ))
+                    snapshotsByID[assetID] = MigrationFileSnapshot(
+                        assetID: assetID,
+                        displayName: originalName,
+                        expectedBytes: expected,
+                        actualBytes: 0,
+                        destinationURL: destinationURL,
+                        status: CopySizeVerifier.status(for: verification)
+                    )
+                }
             } catch {
-                failures.append(.init(assetID: asset.localIdentifier, message: error.localizedDescription))
+                let message = error.localizedDescription
+                failures.append(.init(assetID: assetID, message: message))
+                snapshotsByID[assetID] = MigrationFileSnapshot(
+                    assetID: assetID,
+                    displayName: originalName,
+                    expectedBytes: preliminaryExpected,
+                    actualBytes: nil,
+                    destinationURL: destinationURL,
+                    status: .failed(message)
+                )
             }
 
-            progress(MigrationProgress(completed: index + 1, total: total, currentFilename: outputName, isIndeterminate: false))
+            completedCount += 1
+            progress(makeFileProgress(completed: completedCount, total: total, currentFilename: originalName, isIndeterminate: false, assetIDs: assetIDs, snapshotsByID: snapshotsByID))
         }
 
-        onResult(MigrationRunResult(successes: successes, failures: failures))
+        if !Task.isCancelled {
+            var addedMissing = false
+            let missingMessage = VideoMigrationError.assetNotFound.localizedDescription
+            for assetID in assetIDs where !seenIDs.contains(assetID) {
+                failures.append(.init(assetID: assetID, message: missingMessage))
+                snapshotsByID[assetID] = MigrationFileSnapshot(
+                    assetID: assetID,
+                    displayName: assetID,
+                    expectedBytes: 0,
+                    actualBytes: nil,
+                    destinationURL: nil,
+                    status: .failed(missingMessage)
+                )
+                addedMissing = true
+            }
+            if addedMissing {
+                progress(makeFileProgress(completed: completedCount, total: total, currentFilename: nil, isIndeterminate: false, assetIDs: assetIDs, snapshotsByID: snapshotsByID))
+            }
+        }
+
+        onResult(MigrationRunResult(successes: successes, failures: failures, sizeMismatches: sizeMismatches))
     }
 
-    private func export(resource: PHAssetResource, expectedDuration: TimeInterval, to destinationURL: URL) async throws -> Int64 {
+    private func makeFileProgress(
+        completed: Int,
+        total: Int,
+        currentFilename: String?,
+        isIndeterminate: Bool,
+        assetIDs: [String],
+        snapshotsByID: [String: MigrationFileSnapshot]
+    ) -> MigrationProgress {
+        MigrationProgress(
+            completed: completed,
+            total: total,
+            currentFilename: currentFilename,
+            isIndeterminate: isIndeterminate,
+            files: assetIDs.compactMap { snapshotsByID[$0] }
+        )
+    }
+
+    private func export(resource: PHAssetResource, to destinationURL: URL) async throws -> (sourceBytes: Int64, destinationBytes: Int64) {
         // Export to sandbox first, then copy to the external folder while holding the security scope.
         // In practice, Photos export can fail with generic errors when writing directly to external storage URLs.
         let fileManager = FileManager.default
@@ -157,6 +296,10 @@ struct VideoMigrationService: VideoMigrating {
             }
         }
 
+        let tempBytes = CopySizeVerifier().destinationFileSizeBytes(at: tempURL) ?? 0
+        // Source size is the PHAssetResource fileSize when iOS exposes it; otherwise the bytes just exported.
+        let sourceBytes = AssetResourceByteCount.fileSizeBytes(of: resource) ?? tempBytes
+
         let folderURL = destinationURL.deletingLastPathComponent()
         try fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
@@ -167,14 +310,11 @@ struct VideoMigrationService: VideoMigrating {
             throw VideoMigrationError.copyFailed("\(nsError.domain) (\(nsError.code)): \(nsError.localizedDescription)")
         }
 
-        // M6 minimal validation: file exists, non-empty, and AVFoundation can read a non-zero duration.
-        let attrs = try fileManager.attributesOfItem(atPath: destinationURL.path)
-        let bytes = (attrs[.size] as? NSNumber)?.int64Value ?? 0
-        if bytes <= 0 {
+        let destinationBytes = CopySizeVerifier().destinationFileSizeBytes(at: destinationURL) ?? 0
+        if destinationBytes <= 0 {
             throw VideoMigrationError.exportFailed("exported file is empty")
         }
-        try await validatePlayableDuration(destinationURL, expectedDuration: expectedDuration)
-        return bytes
+        return (sourceBytes: sourceBytes, destinationBytes: destinationBytes)
     }
 
     private func validatePlayableDuration(_ fileURL: URL, expectedDuration: TimeInterval) async throws {

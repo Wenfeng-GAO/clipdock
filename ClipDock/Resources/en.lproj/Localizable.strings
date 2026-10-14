@@ -136,3 +136,20 @@
 "Migration completed with failures: %d success, %d failed." = "Migration completed with failures: %d success, %d failed.";
 "Full Photos access is required to delete videos." = "Full Photos access is required to delete videos.";
 "Deleted %d original video(s)." = "Deleted %d original video(s).";
+
+"Keep ClipDock in the foreground; locking or switching apps pauses the copy" = "Keep ClipDock in the foreground; locking or switching apps pauses the copy";
+"Size verified" = "Size verified";
+"Size verified · All match" = "Size verified · All match";
+"Copying to USB drive" = "Copying to USB drive";
+"Copied to USB drive" = "Copied to USB drive";
+"Delete originals (available after verification)" = "Delete originals (available after verification)";
+"Delete %d originals · %@" = "Delete %d originals · %@";
+"%d size mismatch(es) were not deleted" = "%d size mismatch(es) were not deleted";
+"Only the %d verified items can be deleted. Mismatched items stay on the phone." = "Only the %d verified items can be deleted. Mismatched items stay on the phone.";
+"Only the %d verified items can be deleted. The mismatched one stays on the phone." = "Only the %d verified items can be deleted. The mismatched one stays on the phone.";
+"Re-copy %d mismatched" = "Re-copy %d mismatched";
+"Copying" = "Copying";
+"Re-copy" = "Re-copy";
+"Stop" = "Stop";
+"Don't Delete Yet" = "Don't Delete Yet";
+"After deletion, originals go to Recently Deleted and can be restored for 30 days." = "After deletion, originals go to Recently Deleted and can be restored for 30 days.";

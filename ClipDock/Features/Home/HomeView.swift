@@ -36,34 +36,48 @@ struct HomeView: View {
                 Color(uiColor: .systemGroupedBackground)
                     .ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        externalStorageCard
-                        scanAndSelectCard
+                if viewModel.shouldShowMigrationSession {
+                    CopyVerificationSessionView(viewModel: viewModel)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            externalStorageCard
+                            scanAndSelectCard
 
-                        if !viewModel.videos.isEmpty {
-                            videosCard
+                            if !viewModel.videos.isEmpty {
+                                videosCard
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 20)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 20)
                 }
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isShowingAbout = true
-                    } label: {
-                        Image(systemName: "info.circle")
+                if viewModel.shouldShowMigrationSession {
+                    if !viewModel.isMigrating && viewModel.copyEligibility.mismatchCount > 0 {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(L10n.tr("Don't Delete Yet")) {
+                                viewModel.postponeOriginalDeletion()
+                            }
+                        }
                     }
-                    .accessibilityLabel(L10n.tr("About"))
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            isShowingAbout = true
+                        } label: {
+                            Image(systemName: "info.circle")
+                        }
+                        .accessibilityLabel(L10n.tr("About"))
+                    }
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                if !viewModel.videos.isEmpty {
+                if !viewModel.videos.isEmpty && !viewModel.shouldShowMigrationSession {
                     MigrationActionBar(viewModel: viewModel, isShowingFailures: $isShowingFailures)
                 }
             }
