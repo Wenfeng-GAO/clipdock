@@ -136,3 +136,22 @@
 "Migration completed with failures: %d success, %d failed." = "迁移完成：成功 %d 个，失败 %d 个。";
 "Full Photos access is required to delete videos." = "删除视频需要“完全访问”相册权限。";
 "Deleted %d original video(s)." = "已删除 %d 个原视频。";
+
+"Keep ClipDock in the foreground; locking or switching apps pauses the copy" = "请保持 ClipDock 在前台，锁屏或切走会暂停";
+"Size verified" = "大小已校验";
+"Size verified · All match" = "大小已校验 · 全部一致";
+"Copying to USB drive" = "正在拷到 U 盘";
+"Copied to USB drive" = "已拷到 U 盘";
+"Delete originals (available after verification)" = "删除原片（校验完成后可用）";
+"Delete %d originals · %@" = "删除 %d 个原片 · %@";
+"%d size mismatch(es) were not deleted" = "%d 个大小不一致，没有删除它";
+"Only the %d verified items can be deleted. Mismatched items stay on the phone." = "只能删除已校验的 %d 个，不一致的会留在手机上";
+"Only the %d verified items can be deleted. The mismatched one stays on the phone." = "只能删除已校验的 %d 个，不一致的那个会留在手机上";
+"Re-copy %d mismatched" = "重拷不一致的 %d 个";
+"Copying" = "拷贝中";
+"Re-copy" = "重拷";
+"Stop" = "停止";
+"Don't Delete Yet" = "先不删";
+"After deletion, originals go to Recently Deleted and can be restored for 30 days." = "删除后原片进「最近删除」，30 天内可恢复";
+"About %d min" = "约 %d 分钟";
+"Under 1 min" = "不到 1 分钟";
