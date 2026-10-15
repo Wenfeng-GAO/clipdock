@@ -37,6 +37,8 @@ final class HomeViewModel: ObservableObject {
     @Published var permissionState: PhotoPermissionState = .notDetermined
     @Published var selectedFolderURL: URL?
     @Published var isFolderWritable = false
+    @Published private(set) var deviceCapacity = VolumeCapacitySnapshot()
+    @Published private(set) var driveCapacity = VolumeCapacitySnapshot()
     @Published var videos: [VideoAssetSummary] = []
     @Published var isScanningVideos = false
     @Published var alertMessage: String?
@@ -76,6 +78,8 @@ final class HomeViewModel: ObservableObject {
     @Published var isMigrating = false
     @Published var migrationProgress: MigrationProgress?
     @Published var lastMigrationResult: MigrationRunResult?
+    /// Latest finished batch, persisted so the home card survives relaunch. Nil until one copies something.
+    @Published private(set) var lastMigrationSummary: LastMigrationSummary?
     /// Per-file copy + size-check state for the latest batch. Empty before the first run.
     @Published var copyItems: [CopyItemState] = []
     @Published var isMigrationSessionVisible = false
@@ -88,8 +92,10 @@ final class HomeViewModel: ObservableObject {
 
     // M8: history
     // 1.0: no History UI (keep only last-run result in-memory).
+    // The home card reads `lastMigrationSummary` and does not link to a history screen.
 
     private(set) var hasLoadedInitialData = false
+    private(set) var hasCompletedScan = false
 
     private let photoPermissionService: PhotoPermissionServicing
     private let externalStorageService: ExternalStorageServicing
@@ -97,12 +103,17 @@ final class HomeViewModel: ObservableObject {
     private let videoMigrationService: VideoMigrating
     private let photoDeletionService: PhotoDeleting
     private let selectionRulesService: SelectionRulesServicing
+    private let volumeCapacityReader: VolumeCapacityReading
+    /// App home lives on the data volume, so this URL's capacity is the device capacity.
+    private let deviceVolumeURL: URL
+    private let lastMigrationSummaryStore: LastMigrationSummaryStoring
 
     private var inFlightSizeAssetIDs: Set<String> = []
     private var monthIndex: [MonthKey: [String]] = [:]
     private var migrationTask: Task<Void, Never>?
     private var migrationGeneration = 0
     private let now: @Sendable () -> Date
+    private var pendingTopNSelection: Int?
 
     init(
         photoPermissionService: PhotoPermissionServicing = PhotoPermissionService(),
@@ -111,7 +122,10 @@ final class HomeViewModel: ObservableObject {
         videoMigrationService: VideoMigrating = VideoMigrationService(),
         photoDeletionService: PhotoDeleting = PhotoDeletionService(),
         selectionRulesService: SelectionRulesServicing = SelectionRulesService(),
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        volumeCapacityReader: VolumeCapacityReading = FileVolumeCapacityReader(),
+        deviceVolumeURL: URL = URL(fileURLWithPath: NSHomeDirectory()),
+        lastMigrationSummaryStore: LastMigrationSummaryStoring = LastMigrationSummaryStore()
     ) {
         self.photoPermissionService = photoPermissionService
         self.externalStorageService = externalStorageService
@@ -120,6 +134,10 @@ final class HomeViewModel: ObservableObject {
         self.photoDeletionService = photoDeletionService
         self.selectionRulesService = selectionRulesService
         self.now = now
+        self.volumeCapacityReader = volumeCapacityReader
+        self.deviceVolumeURL = deviceVolumeURL
+        self.lastMigrationSummaryStore = lastMigrationSummaryStore
+        self.lastMigrationSummary = lastMigrationSummaryStore.load()
     }
 
     @MainActor
@@ -133,7 +151,107 @@ final class HomeViewModel: ObservableObject {
 
         permissionState = photoPermissionService.currentStatus()
         loadSavedFolderIfExists()
+        refreshCapacitySnapshots()
+        if permissionState == .notDetermined || permissionState.canReadLibrary {
+            scanVideos()
+        }
+    }
 
+    // MARK: - Home dashboard
+
+    var librarySummary: HomeLibrarySummary {
+        HomeLibrarySummary.make(
+            videos: videos,
+            sizesBytesByID: videoSizeBytesByID,
+            rules: selectionRulesService
+        )
+    }
+
+    var reclaimableSizeText: String {
+        librarySummary.headlineText
+    }
+
+    var librarySublineText: String {
+        librarySummary.sublineText
+    }
+
+    var storageBarFractions: StorageBarFractions {
+        StorageBarFractions.make(
+            videoBytes: librarySummary.reclaimableBytes,
+            totalBytes: deviceCapacity.totalBytes,
+            availableBytes: deviceCapacity.availableBytes
+        )
+    }
+
+    var storageLegendText: String {
+        StorageBarFractions.legend(
+            availableBytes: deviceCapacity.availableBytes,
+            totalBytes: deviceCapacity.totalBytes
+        )
+    }
+
+    var capacityAvailableText: String {
+        StorageBarFractions.byteText(deviceCapacity.availableBytes)
+    }
+
+    var capacityTotalText: String {
+        StorageBarFractions.byteText(deviceCapacity.totalBytes)
+    }
+
+    var driveTitleText: String {
+        let volumeName = selectedFolderURL == nil ? nil : driveCapacity.name
+        return DriveStatusFormatter.title(volumeName: volumeName, folderURL: selectedFolderURL)
+    }
+
+    var driveStatusText: String {
+        guard selectedFolderURL != nil else {
+            return L10n.tr("Not Selected")
+        }
+        return DriveStatusFormatter.statusLine(
+            isWritable: isFolderWritable,
+            freeBytes: driveCapacity.availableBytes
+        )
+    }
+
+    var driveFolderPath: String? {
+        selectedFolderURL?.path
+    }
+
+    func refreshCapacitySnapshots() {
+        deviceCapacity = volumeCapacityReader.snapshot(at: deviceVolumeURL)
+        refreshDriveCapacity()
+    }
+
+    /// Preselects the largest videos using `SelectionRulesServicing.topNAssetIDsBySize`, replacing the current selection.
+    func selectLargestVideos(count: Int = HomeLibrarySummary.defaultTopN) {
+        guard count > 0 else { return }
+        if permissionState == .denied || permissionState == .restricted {
+            scanVideos()
+            return
+        }
+        if !permissionState.canReadLibrary {
+            pendingTopNSelection = count
+            scanVideos()
+            return
+        }
+        if isScanningVideos || isFetchingAllVideoSizes || !hasCompletedScan {
+            pendingTopNSelection = count
+            if !isScanningVideos && !isFetchingAllVideoSizes {
+                scanVideos()
+            }
+            return
+        }
+        applyLargestSelection(count: count)
+    }
+
+    func prepareManualPick() {
+        if permissionState == .denied || permissionState == .restricted {
+            scanVideos()
+            return
+        }
+        if !hasCompletedScan && !isScanningVideos && !isFetchingAllVideoSizes {
+            scanVideos()
+        }
     }
 
     func requestPhotoAccess() {
@@ -148,6 +266,7 @@ final class HomeViewModel: ObservableObject {
             try externalStorageService.saveFolderBookmark(folderURL)
             selectedFolderURL = folderURL
             isFolderWritable = externalStorageService.validateFolderWritable(folderURL)
+            refreshDriveCapacity()
             if !isFolderWritable {
                 alertMessage = ExternalStorageError.folderNotWritable.errorDescription
             }
@@ -159,9 +278,11 @@ final class HomeViewModel: ObservableObject {
     func rescanFolderAccess() {
         guard let selectedFolderURL else {
             loadSavedFolderIfExists()
+            refreshCapacitySnapshots()
             return
         }
         isFolderWritable = externalStorageService.validateFolderWritable(selectedFolderURL)
+        refreshDriveCapacity()
         if !isFolderWritable {
             alertMessage = ExternalStorageError.folderNotWritable.errorDescription
         }
@@ -176,6 +297,7 @@ final class HomeViewModel: ObservableObject {
                 permissionState = status
                 guard permissionState.canReadLibrary else {
                     alertMessage = L10n.tr("Photo access is required before scanning videos.")
+                    pendingTopNSelection = nil
                     return
                 }
                 beginScan()
@@ -193,6 +315,7 @@ final class HomeViewModel: ObservableObject {
 
     private func beginScan() {
         isScanningVideos = true
+        hasCompletedScan = false
         listVisibleLimit = 20
         showSelectedOnly = false
         selectedVideoIDs.removeAll()
@@ -219,8 +342,49 @@ final class HomeViewModel: ObservableObject {
 
             // Prepare sizes in the background so "Sort by Size" works immediately and correctly.
             await prefetchSizesForAllScannedVideosIfNeeded()
-
+            hasCompletedScan = true
+            if let pending = pendingTopNSelection {
+                pendingTopNSelection = nil
+                applyLargestSelection(count: pending)
+            }
         }
+    }
+
+    private func applyLargestSelection(count: Int) {
+        guard permissionState.canReadLibrary else { return }
+        pendingTopNSelection = nil
+        Task {
+            await prefetchSizesForAllScannedVideosIfNeeded()
+            let ids = selectionRulesService.topNAssetIDsBySize(
+                n: count,
+                videos: videos,
+                sizesBytesByID: videoSizeBytesByID
+            )
+            selectedVideoIDs = Set(ids)
+            recomputeSelectedSizeTotals()
+            let knownCount = videos.filter { videoSizeBytesByID[$0.id] != nil }.count
+            if ids.count < count && knownCount < videos.count {
+                alertMessage = L10n.tr(
+                    "Selected %d item(s). Some videos may not have a local size available (iCloud-only).",
+                    ids.count
+                )
+            }
+        }
+    }
+
+    private func refreshDriveCapacity() {
+        guard let folderURL = selectedFolderURL else {
+            driveCapacity = VolumeCapacitySnapshot()
+            return
+        }
+        // Resource values on a document-picker URL stay empty unless the security scope is held.
+        let started = folderURL.startAccessingSecurityScopedResource()
+        defer {
+            if started {
+                folderURL.stopAccessingSecurityScopedResource()
+            }
+        }
+        driveCapacity = volumeCapacityReader.snapshot(at: folderURL)
     }
 
     // MARK: - Selection (M4)
@@ -776,6 +940,7 @@ final class HomeViewModel: ObservableObject {
         isMigrating = false
         migrationTask = nil
         rebuildLastMigrationResult()
+        recordLastMigrationSummaryIfNeeded()
 
         if result.failureCount > 0 {
             alertMessage = L10n.tr(
@@ -815,6 +980,22 @@ final class HomeViewModel: ObservableObject {
         }
 
         lastMigrationResult = MigrationRunResult(successes: successes, failures: failures, sizeMismatches: mismatches)
+    }
+
+    /// Writes the home-card summary once every file in the batch has a size-check outcome and at least one copied.
+    private func recordLastMigrationSummaryIfNeeded() {
+        let eligibility = copyEligibility
+        guard eligibility.isVerificationComplete else { return }
+        let copiedCount = eligibility.verifiedCount + eligibility.mismatchCount
+        guard copiedCount > 0 else { return }
+        let summary = LastMigrationSummary(
+            date: now(),
+            copiedCount: copiedCount,
+            verifiedCount: eligibility.verifiedCount,
+            totalCount: copyItems.count
+        )
+        lastMigrationSummary = summary
+        lastMigrationSummaryStore.save(summary)
     }
 
     private func updateCopyItem(_ assetID: String, _ body: (inout CopyItemState) -> Void) {

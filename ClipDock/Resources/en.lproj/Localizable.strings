@@ -155,3 +155,26 @@
 "After deletion, originals go to Recently Deleted and can be restored for 30 days." = "After deletion, originals go to Recently Deleted and can be restored for 30 days.";
 "About %d min" = "About %d min";
 "Under 1 min" = "Under 1 min";
+
+"ClipDock" = "ClipDock";
+"Videos to free" = "Videos to free";
+"%@ videos · largest %d use %@" = "%@ videos · largest %d use %@";
+"Videos" = "Videos";
+"Other" = "Other";
+"Available %@ / %@" = "Available %@ / %@";
+"■ Videos  ■ Other  ■ Available %@ / %@" = "■ Videos  ■ Other  ■ Available %@ / %@";
+"Pick the %d largest videos" = "Pick the %d largest videos";
+"Choose myself" = "Choose myself";
+"USB Drive" = "USB Drive";
+"USB Drive · %@" = "USB Drive · %@";
+"Change ›" = "Change ›";
+"Writable ✓ · %@ free" = "Writable ✓ · %@ free";
+"Not writable · %@ free" = "Not writable · %@ free";
+"Writable ✓" = "Writable ✓";
+"Not writable" = "Not writable";
+"Capacity Unknown" = "--";
+
+"Last Migration" = "Last Migration";
+"%d videos" = "%d videos";
+"%d size mismatch(es)" = "%d size mismatch(es)";
+"History ›" = "History ›";

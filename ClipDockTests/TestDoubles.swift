@@ -103,6 +103,33 @@ final class MockPhotoDeletionService: PhotoDeleting {
     }
 }
 
+final class MockVolumeCapacityReader: VolumeCapacityReading {
+    var snapshotByPath: [String: VolumeCapacitySnapshot] = [:]
+    var fallback = VolumeCapacitySnapshot()
+    private(set) var requestedPaths: [String] = []
+
+    func snapshot(at url: URL) -> VolumeCapacitySnapshot {
+        requestedPaths.append(url.path)
+        return snapshotByPath[url.path] ?? fallback
+    }
+}
+
+final class MockLastMigrationSummaryStore: LastMigrationSummaryStoring {
+    var stored: LastMigrationSummary?
+    private(set) var saveCount = 0
+
+    init(stored: LastMigrationSummary? = nil) {
+        self.stored = stored
+    }
+
+    func load() -> LastMigrationSummary? { stored }
+
+    func save(_ summary: LastMigrationSummary) {
+        saveCount += 1
+        stored = summary
+    }
+}
+
 final class MockHistoryStore: MigrationHistoryStoring {
     var loaded: [MigrationHistoryRecord] = []
     private(set) var appended: [MigrationHistoryRecord] = []
