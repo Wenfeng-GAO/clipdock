@@ -78,6 +78,8 @@ final class HomeViewModel: ObservableObject {
     @Published var isMigrating = false
     @Published var migrationProgress: MigrationProgress?
     @Published var lastMigrationResult: MigrationRunResult?
+    /// Latest finished batch, persisted so the home card survives relaunch. Nil until one copies something.
+    @Published private(set) var lastMigrationSummary: LastMigrationSummary?
     /// Per-file copy + size-check state for the latest batch. Empty before the first run.
     @Published var copyItems: [CopyItemState] = []
     @Published var isMigrationSessionVisible = false
@@ -90,6 +92,7 @@ final class HomeViewModel: ObservableObject {
 
     // M8: history
     // 1.0: no History UI (keep only last-run result in-memory).
+    // The home card reads `lastMigrationSummary` and does not link to a history screen.
 
     private(set) var hasLoadedInitialData = false
     private(set) var hasCompletedScan = false
@@ -103,6 +106,7 @@ final class HomeViewModel: ObservableObject {
     private let volumeCapacityReader: VolumeCapacityReading
     /// App home lives on the data volume, so this URL's capacity is the device capacity.
     private let deviceVolumeURL: URL
+    private let lastMigrationSummaryStore: LastMigrationSummaryStoring
 
     private var inFlightSizeAssetIDs: Set<String> = []
     private var monthIndex: [MonthKey: [String]] = [:]
@@ -120,7 +124,8 @@ final class HomeViewModel: ObservableObject {
         selectionRulesService: SelectionRulesServicing = SelectionRulesService(),
         now: @escaping @Sendable () -> Date = Date.init,
         volumeCapacityReader: VolumeCapacityReading = FileVolumeCapacityReader(),
-        deviceVolumeURL: URL = URL(fileURLWithPath: NSHomeDirectory())
+        deviceVolumeURL: URL = URL(fileURLWithPath: NSHomeDirectory()),
+        lastMigrationSummaryStore: LastMigrationSummaryStoring = LastMigrationSummaryStore()
     ) {
         self.photoPermissionService = photoPermissionService
         self.externalStorageService = externalStorageService
@@ -131,6 +136,8 @@ final class HomeViewModel: ObservableObject {
         self.now = now
         self.volumeCapacityReader = volumeCapacityReader
         self.deviceVolumeURL = deviceVolumeURL
+        self.lastMigrationSummaryStore = lastMigrationSummaryStore
+        self.lastMigrationSummary = lastMigrationSummaryStore.load()
     }
 
     @MainActor
@@ -933,6 +940,7 @@ final class HomeViewModel: ObservableObject {
         isMigrating = false
         migrationTask = nil
         rebuildLastMigrationResult()
+        recordLastMigrationSummaryIfNeeded()
 
         if result.failureCount > 0 {
             alertMessage = L10n.tr(
@@ -972,6 +980,22 @@ final class HomeViewModel: ObservableObject {
         }
 
         lastMigrationResult = MigrationRunResult(successes: successes, failures: failures, sizeMismatches: mismatches)
+    }
+
+    /// Writes the home-card summary once every file in the batch has a size-check outcome and at least one copied.
+    private func recordLastMigrationSummaryIfNeeded() {
+        let eligibility = copyEligibility
+        guard eligibility.isVerificationComplete else { return }
+        let copiedCount = eligibility.verifiedCount + eligibility.mismatchCount
+        guard copiedCount > 0 else { return }
+        let summary = LastMigrationSummary(
+            date: now(),
+            copiedCount: copiedCount,
+            verifiedCount: eligibility.verifiedCount,
+            totalCount: copyItems.count
+        )
+        lastMigrationSummary = summary
+        lastMigrationSummaryStore.save(summary)
     }
 
     private func updateCopyItem(_ assetID: String, _ body: (inout CopyItemState) -> Void) {

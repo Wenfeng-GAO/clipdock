@@ -129,6 +129,31 @@ struct StorageBarFractions: Equatable {
     }
 }
 
+enum LastMigrationSummaryText {
+    /// `M/d · {copiedCount} · status`. Status is "Size verified" only when every item in the batch matched.
+    static func line(
+        for summary: LastMigrationSummary,
+        calendar: Calendar = .current,
+        locale: Locale = .current
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "M/d"
+        let dateText = formatter.string(from: summary.date)
+        let countText = L10n.tr("%d videos", summary.copiedCount)
+        return "\(dateText) · \(countText) · \(statusText(for: summary))"
+    }
+
+    private static func statusText(for summary: LastMigrationSummary) -> String {
+        if summary.verifiedCount == summary.totalCount, summary.totalCount > 0 {
+            return L10n.tr("Size verified")
+        }
+        return L10n.tr("%d size mismatch(es)", summary.totalCount - summary.verifiedCount)
+    }
+}
+
 enum DriveStatusFormatter {
     static func title(volumeName: String?, folderURL: URL?) -> String {
         guard let folderURL else {

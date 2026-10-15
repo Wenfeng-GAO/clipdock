@@ -114,6 +114,22 @@ final class MockVolumeCapacityReader: VolumeCapacityReading {
     }
 }
 
+final class MockLastMigrationSummaryStore: LastMigrationSummaryStoring {
+    var stored: LastMigrationSummary?
+    private(set) var saveCount = 0
+
+    init(stored: LastMigrationSummary? = nil) {
+        self.stored = stored
+    }
+
+    func load() -> LastMigrationSummary? { stored }
+
+    func save(_ summary: LastMigrationSummary) {
+        saveCount += 1
+        stored = summary
+    }
+}
+
 final class MockHistoryStore: MigrationHistoryStoring {
     var loaded: [MigrationHistoryRecord] = []
     private(set) var appended: [MigrationHistoryRecord] = []

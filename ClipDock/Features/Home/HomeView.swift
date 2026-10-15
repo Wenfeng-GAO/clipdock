@@ -155,6 +155,9 @@ struct HomeView: View {
                     storageSection
                     pickButtons
                     driveCard
+                    if let summary = viewModel.lastMigrationSummary {
+                        lastMigrationCard(summary)
+                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
@@ -331,6 +334,23 @@ struct HomeView: View {
         }
         .padding(14)
         .background(HomePalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func lastMigrationCard(_ summary: LastMigrationSummary) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.tr("Last Migration"))
+                .font(.system(size: 15))
+                .foregroundStyle(HomePalette.text)
+                .lineLimit(1)
+            Text(LastMigrationSummaryText.line(for: summary))
+                .font(.system(size: 13))
+                .foregroundStyle(HomePalette.muted)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(HomePalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private var driveStatusColor: Color {

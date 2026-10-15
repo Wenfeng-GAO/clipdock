@@ -173,3 +173,7 @@
 "Writable ✓" = "Writable ✓";
 "Not writable" = "Not writable";
 "Capacity Unknown" = "--";
+
+"Last Migration" = "Last Migration";
+"%d videos" = "%d videos";
+"%d size mismatch(es)" = "%d size mismatch(es)";

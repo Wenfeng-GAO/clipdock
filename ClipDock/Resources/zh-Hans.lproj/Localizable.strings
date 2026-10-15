@@ -173,3 +173,7 @@
 "Writable ✓" = "可写 ✓";
 "Not writable" = "不可写";
 "Capacity Unknown" = "--";
+
+"Last Migration" = "上次迁移";
+"%d videos" = "%d 个";
+"%d size mismatch(es)" = "%d 个大小不一致";
