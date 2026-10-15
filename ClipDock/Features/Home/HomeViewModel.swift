@@ -105,6 +105,8 @@ final class HomeViewModel: ObservableObject {
     // M7: deletion
     @Published var isDeleting = false
     @Published var isShowingDeleteConfirm = false
+    /// Presented after originals move to Recently Deleted.
+    @Published private(set) var deletionResultModel: DeletionResultViewModel?
 
     // M8: history
     // 1.0: no History UI (keep only last-run result in-memory).
@@ -1105,13 +1107,30 @@ final class HomeViewModel: ObservableObject {
         }
 
         let assetIDs: [String]
+        let snapshot: DeletionResultSnapshot
         if !copyItems.isEmpty {
-            guard copyEligibility.isDeleteEnabled else { return }
-            assetIDs = copyEligibility.deletableAssetIDs
+            let eligibility = copyEligibility
+            guard eligibility.isDeleteEnabled else { return }
+            let items = copyItems
+            let successes = lastMigrationResult?.successes ?? []
+            assetIDs = eligibility.deletableAssetIDs
+            let copiedCount = eligibility.verifiedCount + eligibility.mismatchCount
+            snapshot = DeletionResultSnapshot(
+                copiedCount: copiedCount,
+                verifiedMatchCount: eligibility.verifiedCount,
+                verifiedTotalCount: copiedCount,
+                pendingReleaseBytes: PendingReleaseTotal.releasedBytes(
+                    deletableAssetIDs: assetIDs,
+                    items: items,
+                    successes: successes
+                )
+            )
         } else if let result = lastMigrationResult {
             assetIDs = result.successes.map(\.assetID)
+            snapshot = DeletionResultSnapshot(deletedSuccesses: result.successes)
         } else {
             assetIDs = []
+            snapshot = DeletionResultSnapshot(deletedSuccesses: [])
         }
 
         guard !assetIDs.isEmpty else {
@@ -1120,17 +1139,22 @@ final class HomeViewModel: ObservableObject {
         }
 
         isDeleting = true
-        Task {
+        Task { @MainActor in
             do {
                 try await photoDeletionService.deleteAssets(withLocalIDs: assetIDs)
                 isDeleting = false
-                alertMessage = L10n.tr("Deleted %d original video(s).", assetIDs.count)
+                deletionResultModel = DeletionResultViewModel.live(snapshot: snapshot)
                 scanVideos()
             } catch {
                 isDeleting = false
                 alertMessage = error.localizedDescription
             }
         }
+    }
+
+    func dismissDeletionResult() {
+        deletionResultModel?.cancelPendingRemeasure()
+        deletionResultModel = nil
     }
 
     private func loadSavedFolderIfExists() {

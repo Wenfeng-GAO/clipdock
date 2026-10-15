@@ -177,7 +177,6 @@
 "Last Migration" = "上次迁移";
 "%d videos" = "%d 个";
 "%d size mismatch(es)" = "%d 个大小不一致";
-"History ›" = "历史 ›";
 "Selected %d" = "已选 %d 个";
 " · %@" = " · %@";
 "Copy to Drive" = "拷到 U 盘";
@@ -192,3 +191,16 @@
 "2025" = "2025";
 "All" = "全部";
 "Drive free %@" = "U 盘剩余 %@";
+
+"Copied to USB · %d" = "已拷到 U 盘 · %d 个";
+"Size verified · %d/%d match" = "大小已校验 · %d/%d 一致";
+"Originals moved to Recently Deleted" = "原片已移到「最近删除」";
+"Pending Release" = "待释放";
+"Space is freed only after emptying Recently Deleted" = "清空「最近删除」后才真正腾出空间";
+"Open Photos → Albums → Recently Deleted at the bottom" = "打开「照片」→ 相簿 → 最下面「最近删除」";
+"Top right Select → Delete All" = "右上角「选择」→「全部删除」";
+"Open Photos" = "打开「照片」";
+"After emptying, return here to see the space actually freed (±5%)." = "清空后回到这里，会显示实际腾出的空间（误差 ±5%）";
+"Back · Freed %@ ✓" = "回来后 · 已腾出 %@ ✓";
+"Freed %@ (est. %@)" = "已腾出 %@（预估 %@）";
+"History ›" = "历史 ›";

@@ -177,7 +177,6 @@
 "Last Migration" = "Last Migration";
 "%d videos" = "%d videos";
 "%d size mismatch(es)" = "%d size mismatch(es)";
-"History ›" = "History ›";
 "Selected %d" = "Selected %d";
 " · %@" = " · %@";
 "Copy to Drive" = "Copy to Drive";
@@ -192,3 +191,16 @@
 "2025" = "2025";
 "All" = "All";
 "Drive free %@" = "Drive free %@";
+
+"Copied to USB · %d" = "Copied to USB · %d";
+"Size verified · %d/%d match" = "Size verified · %d/%d match";
+"Originals moved to Recently Deleted" = "Originals moved to Recently Deleted";
+"Pending Release" = "Pending Release";
+"Space is freed only after emptying Recently Deleted" = "Space is freed only after emptying Recently Deleted";
+"Open Photos → Albums → Recently Deleted at the bottom" = "Open Photos → Albums → Recently Deleted at the bottom";
+"Top right Select → Delete All" = "Top right Select → Delete All";
+"Open Photos" = "Open Photos";
+"After emptying, return here to see the space actually freed (±5%)." = "After emptying, return here to see the space actually freed (±5%).";
+"Back · Freed %@ ✓" = "Back · Freed %@ ✓";
+"Freed %@ (est. %@)" = "Freed %@ (est. %@)";
+"History ›" = "History ›";

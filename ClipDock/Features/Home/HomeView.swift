@@ -8,7 +8,9 @@ struct HomeView: View {
     @State private var isShowingPicker = false
     @State private var isShowingDriveDetails = false
     @State private var showFolderPickerAfterDetails = false
+    @State private var didRevealInitialPicker = false
     @State private var thumbnailProvider = PhotoKitVideoThumbnailProvider()
+    private let showsPickerOnFirstAppear: Bool
 
     private var appVersionText: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
@@ -19,10 +21,18 @@ struct HomeView: View {
     @MainActor
     init() {
         _viewModel = StateObject(wrappedValue: HomeViewModel.makeForCurrentEnvironment())
+        showsPickerOnFirstAppear = false
     }
 
     init(viewModel: HomeViewModel) {
+        self.init(viewModel: viewModel, initiallyShowingPicker: false)
+    }
+
+    /// `initiallyShowingPicker` defaults to false via `init(viewModel:)`.
+    init(viewModel: HomeViewModel, initiallyShowingPicker: Bool) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        _isShowingPicker = State(initialValue: initiallyShowingPicker)
+        showsPickerOnFirstAppear = initiallyShowingPicker
     }
 
     var body: some View {
@@ -93,6 +103,22 @@ struct HomeView: View {
                 )
             )
         }
+        .fullScreenCover(
+            isPresented: Binding(
+                get: { viewModel.deletionResultModel != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        viewModel.dismissDeletionResult()
+                    }
+                }
+            )
+        ) {
+            if let model = viewModel.deletionResultModel {
+                DeletionResultView(model: model) {
+                    viewModel.dismissDeletionResult()
+                }
+            }
+        }
         .onChange(of: isShowingDriveDetails) { _, isShowing in
             guard !isShowing, showFolderPickerAfterDetails else { return }
             showFolderPickerAfterDetails = false
@@ -105,6 +131,13 @@ struct HomeView: View {
         .onAppear {
             viewModel.loadInitialDataIfNeeded()
             viewModel.refreshCapacitySnapshots()
+            // Navigation may ignore a destination that starts presented. Flip once so the picker is on screen.
+            guard showsPickerOnFirstAppear, !didRevealInitialPicker else { return }
+            didRevealInitialPicker = true
+            isShowingPicker = false
+            Task { @MainActor in
+                isShowingPicker = true
+            }
         }
     }
 

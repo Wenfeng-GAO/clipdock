@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 final class CopyVerificationViewModelTests: XCTestCase {
-    func testDeletableSetDeletesOnlyVerifiedItems() async {
+    func testDeletableSetDeletesOnlyVerifiedItems() async throws {
         let deletion = MockPhotoDeletionService()
         let vm = makeViewModel(deletion: deletion)
         vm.permissionState = .authorized
@@ -21,11 +21,17 @@ final class CopyVerificationViewModelTests: XCTestCase {
         vm.deleteMigratedOriginals()
 
         await TestWait.until { @MainActor in
-            !deletion.deleteCalls.isEmpty
+            vm.deletionResultModel != nil
         }
 
-        XCTAssertEqual(deletion.deleteCalls.count, 1)
-        XCTAssertEqual(deletion.deleteCalls[0], ["A", "C"])
+        let calls = deletion.deleteCalls
+        let model = vm.deletionResultModel
+        let snapshot = try XCTUnwrap(model).snapshot
+        XCTAssertEqual(calls, [["A", "C"]])
+        XCTAssertEqual(snapshot.copiedCount, 3)
+        XCTAssertEqual(snapshot.verifiedMatchCount, 2)
+        XCTAssertEqual(snapshot.verifiedTotalCount, 3)
+        XCTAssertEqual(snapshot.pendingReleaseBytes, 150)
     }
 
     func testDeleteDisabledBeforeVerificationComplete() {
