@@ -153,3 +153,5 @@
 "Stop" = "Stop";
 "Don't Delete Yet" = "Don't Delete Yet";
 "After deletion, originals go to Recently Deleted and can be restored for 30 days." = "After deletion, originals go to Recently Deleted and can be restored for 30 days.";
+"About %d min" = "About %d min";
+"Under 1 min" = "Under 1 min";

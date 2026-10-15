@@ -79,6 +79,8 @@ final class HomeViewModel: ObservableObject {
     /// Per-file copy + size-check state for the latest batch. Empty before the first run.
     @Published var copyItems: [CopyItemState] = []
     @Published var isMigrationSessionVisible = false
+    /// When the current copy session began. Replaced on every start and re-copy.
+    private var copySessionStartedAt: Date?
 
     // M7: deletion
     @Published var isDeleting = false
@@ -100,6 +102,7 @@ final class HomeViewModel: ObservableObject {
     private var monthIndex: [MonthKey: [String]] = [:]
     private var migrationTask: Task<Void, Never>?
     private var migrationGeneration = 0
+    private let now: @Sendable () -> Date
 
     init(
         photoPermissionService: PhotoPermissionServicing = PhotoPermissionService(),
@@ -107,7 +110,8 @@ final class HomeViewModel: ObservableObject {
         videoLibraryService: VideoLibraryServicing = VideoLibraryService(),
         videoMigrationService: VideoMigrating = VideoMigrationService(),
         photoDeletionService: PhotoDeleting = PhotoDeletionService(),
-        selectionRulesService: SelectionRulesServicing = SelectionRulesService()
+        selectionRulesService: SelectionRulesServicing = SelectionRulesService(),
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.photoPermissionService = photoPermissionService
         self.externalStorageService = externalStorageService
@@ -115,6 +119,7 @@ final class HomeViewModel: ObservableObject {
         self.videoMigrationService = videoMigrationService
         self.photoDeletionService = photoDeletionService
         self.selectionRulesService = selectionRulesService
+        self.now = now
     }
 
     @MainActor
@@ -195,6 +200,7 @@ final class HomeViewModel: ObservableObject {
         selectedTotalKnownBytes = 0
         lastMigrationResult = nil
         copyItems = []
+        copySessionStartedAt = nil
         isMigrationSessionVisible = false
         migrationGeneration += 1
         migrationTask?.cancel()
@@ -622,6 +628,22 @@ final class HomeViewModel: ObservableObject {
         CopySessionStats.make(items: copyItems, isMigrating: isMigrating)
     }
 
+    /// Byte progress while copying. Appends a remaining-time estimate once throughput is known.
+    var copyingByteSubtitle: String {
+        let stats = sessionStats
+        let ratio = "\(ByteCountText.string(fromBytes: stats.copiedBytes)) / \(ByteCountText.string(fromBytes: stats.totalBytes))"
+        guard let copySessionStartedAt else { return ratio }
+        let elapsed = now().timeIntervalSince(copySessionStartedAt)
+        guard let remaining = CopyTimeEstimator.remainingSeconds(
+            copiedBytes: stats.copiedBytes,
+            totalBytes: stats.totalBytes,
+            elapsed: elapsed
+        ) else {
+            return ratio
+        }
+        return "\(ratio) · \(CopyTimeEstimator.minutesText(remaining))"
+    }
+
     var deleteOriginalsButtonTitle: String {
         if !copyItems.isEmpty {
             let eligibility = copyEligibility
@@ -663,6 +685,7 @@ final class HomeViewModel: ObservableObject {
         migrationTask?.cancel()
         migrationGeneration += 1
         let generation = migrationGeneration
+        copySessionStartedAt = now()
         isMigrating = true
         migrationProgress = MigrationProgress(
             completed: 0,

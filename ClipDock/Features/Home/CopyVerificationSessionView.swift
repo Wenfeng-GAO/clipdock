@@ -29,7 +29,8 @@ struct CopyVerificationSessionView: View {
                 isMigrating: viewModel.isMigrating,
                 inProgressFraction: stats.inProgressFraction,
                 verifiedFraction: stats.verifiedFraction,
-                mismatchFraction: stats.mismatchFraction
+                mismatchFraction: stats.mismatchFraction,
+                mismatchColor: mismatchColor
             )
 
             if viewModel.isMigrating {
@@ -72,10 +73,12 @@ struct CopyVerificationSessionView: View {
     private func subtitle(stats: CopySessionStats, eligibility: CopyDeletionEligibility) -> some View {
         if viewModel.isMigrating {
             if stats.totalBytes > 0 {
-                Text(verbatim: "\(ByteCountText.string(fromBytes: stats.copiedBytes)) / \(ByteCountText.string(fromBytes: stats.totalBytes))")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    Text(verbatim: viewModel.copyingByteSubtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
             }
         } else if eligibility.mismatchCount > 0 {
             Text(verbatim: L10n.tr("%d size mismatch(es) were not deleted", eligibility.mismatchCount))
@@ -290,6 +293,7 @@ private struct CopyRatioBar: View {
     let inProgressFraction: Double
     let verifiedFraction: Double
     let mismatchFraction: Double
+    let mismatchColor: Color
 
     var body: some View {
         GeometryReader { proxy in
@@ -304,7 +308,7 @@ private struct CopyRatioBar: View {
                         .fill(Color.green)
                         .frame(width: width * verifiedFraction)
                     Rectangle()
-                        .fill(Color.red)
+                        .fill(mismatchColor)
                         .frame(width: width * mismatchFraction)
                 }
                 Spacer(minLength: 0)

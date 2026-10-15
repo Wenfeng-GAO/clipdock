@@ -57,15 +57,7 @@ struct HomeView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if viewModel.shouldShowMigrationSession {
-                    if !viewModel.isMigrating && viewModel.copyEligibility.mismatchCount > 0 {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button(L10n.tr("Don't Delete Yet")) {
-                                viewModel.postponeOriginalDeletion()
-                            }
-                        }
-                    }
-                } else {
+                if !viewModel.shouldShowMigrationSession {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             isShowingAbout = true

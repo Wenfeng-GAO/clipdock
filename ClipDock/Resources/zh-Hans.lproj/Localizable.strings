@@ -153,3 +153,5 @@
 "Stop" = "停止";
 "Don't Delete Yet" = "先不删";
 "After deletion, originals go to Recently Deleted and can be restored for 30 days." = "删除后原片进「最近删除」，30 天内可恢复";
+"About %d min" = "约 %d 分钟";
+"Under 1 min" = "不到 1 分钟";

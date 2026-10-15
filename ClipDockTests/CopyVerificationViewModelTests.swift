@@ -85,16 +85,76 @@ final class CopyVerificationViewModelTests: XCTestCase {
         XCTAssertEqual(migration.migrateCalls.map(\.1), [URL(fileURLWithPath: "/tmp/clipdock-recopy")])
     }
 
+    func testCopyingSubtitleUsesInjectedClockAndResetsOnRecopy() {
+        let clock = MutableClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let now: @Sendable () -> Date = { clock.date }
+        let vm = makeViewModel(now: now)
+        vm.permissionState = .authorized
+        vm.isFolderWritable = true
+        vm.selectedFolderURL = URL(fileURLWithPath: "/tmp/clipdock-clock")
+        vm.videos = [
+            VideoAssetSummary(id: "A", creationDate: clock.date, duration: 1, pixelWidth: 1, pixelHeight: 1),
+            VideoAssetSummary(id: "B", creationDate: clock.date, duration: 1, pixelWidth: 1, pixelHeight: 1),
+        ]
+        vm.selectedVideoIDs = ["A", "B"]
+
+        vm.startMigration()
+        vm.copyItems = [
+            CopyItemState(assetID: "A", displayName: "a.mov", expectedBytes: 8_600_000_000, actualBytes: 8_600_000_000, status: .verified),
+            CopyItemState(assetID: "B", displayName: "b.mov", expectedBytes: 4_800_000_000, status: .pending),
+        ]
+
+        let copied = ByteCountText.string(fromBytes: 8_600_000_000)
+        let total = ByteCountText.string(fromBytes: 13_400_000_000)
+        let ratio = "\(copied) / \(total)"
+        XCTAssertEqual(vm.copyingByteSubtitle, ratio)
+
+        clock.date = clock.date.addingTimeInterval(120)
+        let remaining = CopyTimeEstimator.remainingSeconds(
+            copiedBytes: 8_600_000_000,
+            totalBytes: 13_400_000_000,
+            elapsed: 120
+        )
+        XCTAssertEqual(vm.copyingByteSubtitle, "\(ratio) · \(CopyTimeEstimator.minutesText(remaining ?? -1))")
+        XCTAssertEqual(CopyTimeEstimator.minutesText(remaining ?? -1), L10n.tr("About %d min", 2))
+
+        vm.stopMigration()
+        vm.copyItems = [
+            CopyItemState(assetID: "A", displayName: "a.mov", expectedBytes: 8_600_000_000, actualBytes: 8_600_000_000, status: .verified),
+            CopyItemState(
+                assetID: "B",
+                displayName: "b.mov",
+                expectedBytes: 4_800_000_000,
+                actualBytes: 10,
+                destinationURL: URL(fileURLWithPath: "/tmp/clipdock-clock/b.mov"),
+                status: .mismatch(expected: 4_800_000_000, actual: 10)
+            ),
+        ]
+        clock.date = clock.date.addingTimeInterval(30)
+        vm.recopyMismatchedFiles()
+
+        let recopied = ByteCountText.string(fromBytes: 8_600_000_000)
+        let recopiedTotal = ByteCountText.string(fromBytes: 13_400_000_000)
+        XCTAssertEqual(vm.copyingByteSubtitle, "\(recopied) / \(recopiedTotal)")
+    }
+
     private func makeViewModel(
         migration: MockVideoMigrationService = MockVideoMigrationService(),
-        deletion: MockPhotoDeletionService = MockPhotoDeletionService()
+        deletion: MockPhotoDeletionService = MockPhotoDeletionService(),
+        now: @escaping @Sendable () -> Date = Date.init
     ) -> HomeViewModel {
         HomeViewModel(
             photoPermissionService: MockPhotoPermissionService(),
             externalStorageService: MockExternalStorageService(),
             videoLibraryService: MockVideoLibraryService(),
             videoMigrationService: migration,
-            photoDeletionService: deletion
+            photoDeletionService: deletion,
+            now: now
         )
     }
+}
+
+private final class MutableClock: @unchecked Sendable {
+    var date: Date
+    init(_ date: Date) { self.date = date }
 }

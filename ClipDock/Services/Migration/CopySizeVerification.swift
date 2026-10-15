@@ -234,12 +234,3 @@ struct CopySessionStats: Equatable, Sendable {
         min(1, max(0, value))
     }
 }
-
-enum ByteCountText {
-    static func string(fromBytes bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
-    }
-}
