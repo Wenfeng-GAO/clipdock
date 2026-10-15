@@ -203,4 +203,3 @@
 "After emptying, return here to see the space actually freed (±5%)." = "清空后回到这里，会显示实际腾出的空间（误差 ±5%）";
 "Back · Freed %@ ✓" = "回来后 · 已腾出 %@ ✓";
 "Freed %@ (est. %@)" = "已腾出 %@（预估 %@）";
-"History ›" = "历史 ›";
