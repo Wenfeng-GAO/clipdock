@@ -93,6 +93,22 @@ struct HomeView: View {
                 )
             )
         }
+        .fullScreenCover(
+            isPresented: Binding(
+                get: { viewModel.deletionResultModel != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        viewModel.dismissDeletionResult()
+                    }
+                }
+            )
+        ) {
+            if let model = viewModel.deletionResultModel {
+                DeletionResultView(model: model) {
+                    viewModel.dismissDeletionResult()
+                }
+            }
+        }
         .onChange(of: isShowingDriveDetails) { _, isShowing in
             guard !isShowing, showFolderPickerAfterDetails else { return }
             showFolderPickerAfterDetails = false
