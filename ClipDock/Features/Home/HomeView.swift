@@ -346,27 +346,20 @@ struct HomeView: View {
         .background(HomePalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    /// Mirrors the drive card (mock 01). 「历史 ›」 is shown for layout parity but is disabled:
-    /// 1.1 has no history screen yet, so it is not a tappable control.
+    /// 上次迁移 card (mock 01). The mock's 「历史 ›」 link is intentionally omitted until a
+    /// history screen exists: a control that does nothing reads as broken (产品 review feedback).
     private func lastMigrationCard(_ summary: LastMigrationSummary) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.tr("Last Migration"))
-                    .font(.system(size: 15))
-                    .foregroundStyle(HomePalette.text)
-                    .lineLimit(1)
-                Text(LastMigrationSummaryText.line(for: summary))
-                    .font(.system(size: 13))
-                    .foregroundStyle(HomePalette.muted)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(L10n.tr("History ›"))
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.tr("Last Migration"))
+                .font(.system(size: 15))
+                .foregroundStyle(HomePalette.text)
+                .lineLimit(1)
+            Text(LastMigrationSummaryText.line(for: summary))
                 .font(.system(size: 13))
                 .foregroundStyle(HomePalette.muted)
-                .accessibilityHidden(true)
+                .lineLimit(2)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(HomePalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .accessibilityElement(children: .combine)
