@@ -178,3 +178,17 @@
 "%d videos" = "%d 个";
 "%d size mismatch(es)" = "%d 个大小不一致";
 "History ›" = "历史 ›";
+"Selected %d" = "已选 %d 个";
+" · %@" = " · %@";
+"Copy to Drive" = "拷到 U 盘";
+"☁︎ Sizes for videos that are only in iCloud are estimates." = "☁︎ 只在 iCloud 的视频大小是估算值";
+"Tip: tap a video to toggle selection." = "提示：点一下视频即可选择或取消。";
+"Pick Videos" = "挑视频";
+
+"By size ▾" = "按大小 ▾";
+"By date ▾" = "按日期 ▾";
+"Top 20" = "最大 20";
+"2024" = "2024";
+"2025" = "2025";
+"All" = "全部";
+"Drive free %@" = "U 盘剩余 %@";

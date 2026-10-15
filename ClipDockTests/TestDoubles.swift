@@ -45,6 +45,9 @@ final class MockVideoLibraryService: VideoLibraryServicing {
     private(set) var fetchSizesCalls: [[String]] = []
     var fetchSizesResult: [String: Int64] = [:]
 
+    private(set) var fetchCloudEstimatesCalls: [[String]] = []
+    var fetchCloudEstimatesResult: [String: VideoCloudEstimate] = [:]
+
     func fetchVideosSortedByDate(limit: Int?) async -> [VideoAssetSummary] {
         fetchVideosCallCount += 1
         if fetchVideosDelayNanoseconds > 0 {
@@ -60,6 +63,18 @@ final class MockVideoLibraryService: VideoLibraryServicing {
         for id in assetIDs {
             if let v = fetchSizesResult[id] {
                 out[id] = v
+            }
+        }
+        return out
+    }
+
+    func fetchVideoCloudEstimates(assetIDs: [String]) async -> [String: VideoCloudEstimate] {
+        fetchCloudEstimatesCalls.append(assetIDs)
+        var out: [String: VideoCloudEstimate] = [:]
+        out.reserveCapacity(assetIDs.count)
+        for id in assetIDs {
+            if let estimate = fetchCloudEstimatesResult[id] {
+                out[id] = estimate
             }
         }
         return out

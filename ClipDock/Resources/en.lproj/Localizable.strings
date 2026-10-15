@@ -178,3 +178,17 @@
 "%d videos" = "%d videos";
 "%d size mismatch(es)" = "%d size mismatch(es)";
 "History ›" = "History ›";
+"Selected %d" = "Selected %d";
+" · %@" = " · %@";
+"Copy to Drive" = "Copy to Drive";
+"☁︎ Sizes for videos that are only in iCloud are estimates." = "☁︎ Sizes for videos that are only in iCloud are estimates.";
+"Tip: tap a video to toggle selection." = "Tip: tap a video to toggle selection.";
+"Pick Videos" = "Pick Videos";
+
+"By size ▾" = "By size ▾";
+"By date ▾" = "By date ▾";
+"Top 20" = "Top 20";
+"2024" = "2024";
+"2025" = "2025";
+"All" = "All";
+"Drive free %@" = "Drive free %@";
