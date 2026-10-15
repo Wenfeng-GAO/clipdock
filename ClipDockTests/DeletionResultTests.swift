@@ -65,6 +65,105 @@ final class DeletionResultMathTests: XCTestCase {
         XCTAssertFalse(FreedSpaceTolerance.withinTolerance(freed: 100, expected: -100))
     }
 
+    func testResolveCoversPendingWithinAndOutsideIncludingBoundaries() {
+        let expected: Int64 = 1_000
+
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: expected, measuredFreedBytes: nil),
+            .pendingRelease(expectedBytes: expected)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: expected, measuredFreedBytes: 0),
+            .pendingRelease(expectedBytes: expected)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: expected, measuredFreedBytes: -1),
+            .pendingRelease(expectedBytes: expected)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: 0, measuredFreedBytes: nil),
+            .pendingRelease(expectedBytes: 0)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: 0, measuredFreedBytes: 0),
+            .pendingRelease(expectedBytes: 0)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: -5, measuredFreedBytes: -1),
+            .pendingRelease(expectedBytes: -5)
+        )
+
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: expected, measuredFreedBytes: 950),
+            .freedWithinTolerance(freedBytes: 950)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: expected, measuredFreedBytes: 1_050),
+            .freedWithinTolerance(freedBytes: 1_050)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: expected, measuredFreedBytes: 949),
+            .freedOutsideTolerance(freedBytes: 949, expectedBytes: expected)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: expected, measuredFreedBytes: 1_051),
+            .freedOutsideTolerance(freedBytes: 1_051, expectedBytes: expected)
+        )
+
+        let big: Int64 = 10_000_000_000
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: big, measuredFreedBytes: 9_490_000_000),
+            .freedOutsideTolerance(freedBytes: 9_490_000_000, expectedBytes: big)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: big, measuredFreedBytes: 9_500_000_000),
+            .freedWithinTolerance(freedBytes: 9_500_000_000)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: big, measuredFreedBytes: 10_500_000_000),
+            .freedWithinTolerance(freedBytes: 10_500_000_000)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: big, measuredFreedBytes: 10_510_000_000),
+            .freedOutsideTolerance(freedBytes: 10_510_000_000, expectedBytes: big)
+        )
+
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: 0, measuredFreedBytes: 1),
+            .freedOutsideTolerance(freedBytes: 1, expectedBytes: 0)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: -5, measuredFreedBytes: 10),
+            .freedOutsideTolerance(freedBytes: 10, expectedBytes: -5)
+        )
+
+        // Tolerance is forwarded into withinTolerance: 90% is outside 5% and inside 10%.
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: expected, measuredFreedBytes: 900),
+            .freedOutsideTolerance(freedBytes: 900, expectedBytes: expected)
+        )
+        XCTAssertEqual(
+            FreedSpaceResultState.resolve(expectedBytes: expected, measuredFreedBytes: 900, tolerance: 0.10),
+            .freedWithinTolerance(freedBytes: 900)
+        )
+
+        let outside = FreedSpaceResultState.freedOutsideTolerance(freedBytes: 949, expectedBytes: expected)
+        let outsideText = outside.freedStatusText
+        XCTAssertEqual(
+            outsideText,
+            L10n.tr(
+                "Freed %@ (est. %@)",
+                ByteCountText.string(fromBytes: 949),
+                ByteCountText.string(fromBytes: expected)
+            )
+        )
+        XCTAssertFalse(outsideText?.contains("✓") ?? true)
+        XCTAssertNil(FreedSpaceResultState.pendingRelease(expectedBytes: expected).freedStatusText)
+        let withinText = FreedSpaceResultState.freedWithinTolerance(freedBytes: 950).freedStatusText
+        XCTAssertEqual(withinText, L10n.tr("Back · Freed %@ ✓", ByteCountText.string(fromBytes: 950)))
+        XCTAssertTrue(withinText?.contains("✓") == true)
+    }
+
     func testSnapshotUsesEligibilityCountsAndOnlyDeletableBytes() {
         let items = [
             CopyItemState(assetID: "A", expectedBytes: 100, actualBytes: 100, status: .verified),
@@ -112,6 +211,24 @@ final class DeletionResultMathTests: XCTestCase {
 
 @MainActor
 final class DeletionResultViewModelTests: XCTestCase {
+    func testInitialStateIsPendingAndDoesNotRequestReview() {
+        let review = RecordingReviewRequester()
+        let vm = makeViewModel(
+            bytes: [1_000],
+            space: ScriptedFreeSpaceMonitor([]),
+            review: review,
+            opener: RecordingPhotosOpener()
+        )
+
+        XCTAssertEqual(vm.state, .pendingRelease(expectedBytes: 1_000))
+        XCTAssertEqual(
+            vm.state,
+            FreedSpaceResultState.resolve(expectedBytes: 1_000, measuredFreedBytes: nil)
+        )
+        XCTAssertNil(vm.state.freedStatusText)
+        XCTAssertEqual(review.requestCount, 0)
+    }
+
     func testPositiveDeltaShowsFreedSpaceAndRequestsReviewOnce() {
         let space = ScriptedFreeSpaceMonitor([1_000, 2_500, 3_200])
         let review = RecordingReviewRequester()
@@ -124,19 +241,19 @@ final class DeletionResultViewModelTests: XCTestCase {
 
         // Still in the foreground: do not treat this as a return.
         vm.handleScenePhase(.active)
-        XCTAssertNil(vm.freedBytes)
-        XCTAssertFalse(vm.showsFreedSpace)
+        XCTAssertEqual(vm.state, .pendingRelease(expectedBytes: 1_500))
         XCTAssertEqual(review.requestCount, 0)
         XCTAssertEqual(space.readCount, 1)
 
         leaveAndReturn(vm)
-        XCTAssertEqual(vm.freedBytes, 1_500)
-        XCTAssertTrue(vm.showsFreedSpace)
+        XCTAssertEqual(vm.state, .freedWithinTolerance(freedBytes: 1_500))
+        XCTAssertTrue(vm.state.freedStatusText?.contains("✓") == true)
         XCTAssertEqual(review.requestCount, 1)
 
-        // A second return can refresh the number, but the review is once per result.
+        // A later sample can move outside tolerance. The review stays once per result.
         leaveAndReturn(vm)
-        XCTAssertEqual(vm.freedBytes, 2_200)
+        XCTAssertEqual(vm.state, .freedOutsideTolerance(freedBytes: 2_200, expectedBytes: 1_500))
+        XCTAssertFalse(vm.state.freedStatusText?.contains("✓") ?? true)
         XCTAssertEqual(review.requestCount, 1)
 
         // An immediate active event does not sample or review again.
@@ -153,8 +270,8 @@ final class DeletionResultViewModelTests: XCTestCase {
         vm.openPhotos()
         leaveAndReturn(vm, via: .inactive)
 
-        XCTAssertNil(vm.freedBytes)
-        XCTAssertFalse(vm.showsFreedSpace)
+        XCTAssertEqual(vm.state, .pendingRelease(expectedBytes: 100))
+        XCTAssertNil(vm.state.freedStatusText)
         XCTAssertEqual(review.requestCount, 0)
     }
 
@@ -166,8 +283,8 @@ final class DeletionResultViewModelTests: XCTestCase {
         vm.openPhotos()
         leaveAndReturn(vm)
 
-        XCTAssertNil(vm.freedBytes)
-        XCTAssertFalse(vm.showsFreedSpace)
+        XCTAssertEqual(vm.state, .pendingRelease(expectedBytes: 100))
+        XCTAssertNil(vm.state.freedStatusText)
         XCTAssertEqual(review.requestCount, 0)
     }
 
@@ -181,7 +298,7 @@ final class DeletionResultViewModelTests: XCTestCase {
         )
         missingBaseline.openPhotos()
         leaveAndReturn(missingBaseline)
-        XCTAssertNil(missingBaseline.freedBytes)
+        XCTAssertEqual(missingBaseline.state, .pendingRelease(expectedBytes: 100))
         XCTAssertEqual(review.requestCount, 0)
 
         let missingReturn = makeViewModel(
@@ -191,7 +308,7 @@ final class DeletionResultViewModelTests: XCTestCase {
         )
         missingReturn.openPhotos()
         leaveAndReturn(missingReturn)
-        XCTAssertNil(missingReturn.freedBytes)
+        XCTAssertEqual(missingReturn.state, .pendingRelease(expectedBytes: 100))
         XCTAssertEqual(review.requestCount, 0)
     }
 
@@ -202,19 +319,19 @@ final class DeletionResultViewModelTests: XCTestCase {
 
         vm.openPhotos()
         leaveAndReturn(vm)
-        XCTAssertNil(vm.freedBytes)
+        XCTAssertEqual(vm.state, .pendingRelease(expectedBytes: 160))
         XCTAssertEqual(review.requestCount, 0)
 
         leaveAndReturn(vm, via: .inactive)
-        XCTAssertNil(vm.freedBytes)
+        XCTAssertEqual(vm.state, .pendingRelease(expectedBytes: 160))
         XCTAssertEqual(review.requestCount, 0)
 
         leaveAndReturn(vm)
-        XCTAssertEqual(vm.freedBytes, 160)
+        XCTAssertEqual(vm.state, .freedWithinTolerance(freedBytes: 160))
         XCTAssertEqual(review.requestCount, 1)
 
         leaveAndReturn(vm)
-        XCTAssertEqual(vm.freedBytes, 160)
+        XCTAssertEqual(vm.state, .freedWithinTolerance(freedBytes: 160))
         XCTAssertEqual(review.requestCount, 1)
     }
 
@@ -225,11 +342,11 @@ final class DeletionResultViewModelTests: XCTestCase {
 
         vm.openPhotos()
         leaveAndReturn(vm)
-        XCTAssertEqual(vm.freedBytes, 800)
+        XCTAssertEqual(vm.state, .freedWithinTolerance(freedBytes: 800))
         XCTAssertEqual(review.requestCount, 1)
 
         leaveAndReturn(vm)
-        XCTAssertEqual(vm.freedBytes, 800)
+        XCTAssertEqual(vm.state, .freedWithinTolerance(freedBytes: 800))
         XCTAssertEqual(review.requestCount, 1)
     }
 
@@ -239,7 +356,7 @@ final class DeletionResultViewModelTests: XCTestCase {
         let vm = makeViewModel(space: space, review: review, opener: RecordingPhotosOpener())
 
         leaveAndReturn(vm)
-        XCTAssertNil(vm.freedBytes)
+        XCTAssertEqual(vm.state, .pendingRelease(expectedBytes: 100))
         XCTAssertEqual(review.requestCount, 0)
         XCTAssertEqual(space.readCount, 0)
     }
@@ -266,7 +383,7 @@ final class DeletionResultViewModelTests: XCTestCase {
         )
         XCTAssertEqual(vm.pendingReleaseBytes, 450)
         XCTAssertEqual(vm.snapshot.copiedCount, 2)
-        XCTAssertFalse(vm.showsFreedSpace)
+        XCTAssertEqual(vm.state, .pendingRelease(expectedBytes: 450))
     }
 
     func testWithinToleranceShowsCheckAndRequestsReviewOnce() {
@@ -277,21 +394,17 @@ final class DeletionResultViewModelTests: XCTestCase {
         vm.openPhotos()
         leaveAndReturn(vm)
 
-        let freed = vm.freedBytes
-        let within = vm.isFreedWithinTolerance
-        let shows = vm.showsFreedSpace
+        let state = vm.state
         let reviews = review.requestCount
-        XCTAssertEqual(freed, 950)
-        XCTAssertTrue(shows)
-        XCTAssertTrue(within)
+        XCTAssertEqual(state, .freedWithinTolerance(freedBytes: 950))
+        XCTAssertTrue(state.freedStatusText?.contains("✓") == true)
         XCTAssertEqual(reviews, 1)
 
         leaveAndReturn(vm)
-        let freedAgain = vm.freedBytes
-        let withinAgain = vm.isFreedWithinTolerance
+        let stateAgain = vm.state
         let reviewsAgain = review.requestCount
-        XCTAssertEqual(freedAgain, 1_050)
-        XCTAssertTrue(withinAgain)
+        XCTAssertEqual(stateAgain, .freedWithinTolerance(freedBytes: 1_050))
+        XCTAssertTrue(stateAgain.freedStatusText?.contains("✓") == true)
         XCTAssertEqual(reviewsAgain, 1)
     }
 
@@ -301,13 +414,18 @@ final class DeletionResultViewModelTests: XCTestCase {
         let below = makeViewModel(bytes: [1_000], space: belowSpace, review: belowReview, opener: RecordingPhotosOpener())
         below.openPhotos()
         leaveAndReturn(below)
-        let belowFreed = below.freedBytes
-        let belowWithin = below.isFreedWithinTolerance
-        let belowShows = below.showsFreedSpace
+        let belowState = below.state
         let belowReviews = belowReview.requestCount
-        XCTAssertEqual(belowFreed, 949)
-        XCTAssertTrue(belowShows)
-        XCTAssertFalse(belowWithin)
+        XCTAssertEqual(belowState, .freedOutsideTolerance(freedBytes: 949, expectedBytes: 1_000))
+        XCTAssertEqual(
+            belowState.freedStatusText,
+            L10n.tr(
+                "Freed %@ (est. %@)",
+                ByteCountText.string(fromBytes: 949),
+                ByteCountText.string(fromBytes: 1_000)
+            )
+        )
+        XCTAssertFalse(belowState.freedStatusText?.contains("✓") ?? true)
         XCTAssertEqual(belowReviews, 0)
 
         let aboveSpace = ScriptedFreeSpaceMonitor([0, 1_051])
@@ -315,11 +433,10 @@ final class DeletionResultViewModelTests: XCTestCase {
         let above = makeViewModel(bytes: [1_000], space: aboveSpace, review: aboveReview, opener: RecordingPhotosOpener())
         above.openPhotos()
         leaveAndReturn(above)
-        let aboveFreed = above.freedBytes
-        let aboveWithin = above.isFreedWithinTolerance
+        let aboveState = above.state
         let aboveReviews = aboveReview.requestCount
-        XCTAssertEqual(aboveFreed, 1_051)
-        XCTAssertFalse(aboveWithin)
+        XCTAssertEqual(aboveState, .freedOutsideTolerance(freedBytes: 1_051, expectedBytes: 1_000))
+        XCTAssertFalse(aboveState.freedStatusText?.contains("✓") ?? true)
         XCTAssertEqual(aboveReviews, 0)
     }
 
@@ -331,11 +448,10 @@ final class DeletionResultViewModelTests: XCTestCase {
         vm.openPhotos()
         leaveAndReturn(vm)
 
-        let freed = vm.freedBytes
-        let within = vm.isFreedWithinTolerance
+        let state = vm.state
         let reviews = review.requestCount
-        XCTAssertEqual(freed, 400)
-        XCTAssertFalse(within)
+        XCTAssertEqual(state, .freedOutsideTolerance(freedBytes: 400, expectedBytes: 0))
+        XCTAssertFalse(state.freedStatusText?.contains("✓") ?? true)
         XCTAssertEqual(reviews, 0)
     }
 
@@ -358,13 +474,12 @@ final class DeletionResultViewModelTests: XCTestCase {
         vm.handleScenePhase(.active)
         await TestWait.until { sleeper.isWaiting }
 
-        let immediateFreed = vm.freedBytes
-        let immediateWithin = vm.isFreedWithinTolerance
+        let immediateState = vm.state
         let immediateReviews = review.requestCount
         let delays = sleeper.recordedDelays()
         let readsAfterImmediate = space.readCount
-        XCTAssertEqual(immediateFreed, 1_000)
-        XCTAssertFalse(immediateWithin)
+        XCTAssertEqual(immediateState, .freedOutsideTolerance(freedBytes: 1_000, expectedBytes: 10_000))
+        XCTAssertFalse(immediateState.freedStatusText?.contains("✓") ?? true)
         XCTAssertEqual(immediateReviews, 0)
         XCTAssertEqual(delays, [DeletionResultViewModel.remeasureDelayNanoseconds])
         XCTAssertEqual(DeletionResultViewModel.remeasureDelayNanoseconds, 3_000_000_000)
@@ -372,25 +487,22 @@ final class DeletionResultViewModelTests: XCTestCase {
 
         sleeper.resumeNext()
         await TestWait.until { @MainActor in
-            vm.freedBytes == 10_000
+            vm.state == .freedWithinTolerance(freedBytes: 10_000)
         }
 
-        let freed = vm.freedBytes
-        let within = vm.isFreedWithinTolerance
+        let state = vm.state
         let reviews = review.requestCount
         let reads = space.readCount
-        XCTAssertEqual(freed, 10_000)
-        XCTAssertTrue(within)
+        XCTAssertEqual(state, .freedWithinTolerance(freedBytes: 10_000))
+        XCTAssertTrue(state.freedStatusText?.contains("✓") == true)
         XCTAssertEqual(reviews, 1)
         XCTAssertEqual(reads, 3)
 
         vm.handleScenePhase(.background)
         vm.handleScenePhase(.active)
-        let freedAgain = vm.freedBytes
-        let withinAgain = vm.isFreedWithinTolerance
+        let stateAgain = vm.state
         let reviewsAgain = review.requestCount
-        XCTAssertEqual(freedAgain, 10_000)
-        XCTAssertTrue(withinAgain)
+        XCTAssertEqual(stateAgain, .freedWithinTolerance(freedBytes: 10_000))
         XCTAssertEqual(reviewsAgain, 1)
         vm.handleScenePhase(.inactive)
     }
@@ -414,21 +526,19 @@ final class DeletionResultViewModelTests: XCTestCase {
         vm.handleScenePhase(.active)
         await TestWait.until { sleeper.isWaiting }
 
-        let freedBefore = vm.freedBytes
+        let stateBefore = vm.state
         let reviewsBefore = review.requestCount
-        XCTAssertNil(freedBefore)
+        XCTAssertEqual(stateBefore, .pendingRelease(expectedBytes: 1_000))
         XCTAssertEqual(reviewsBefore, 0)
 
         sleeper.resumeNext()
         await TestWait.until { @MainActor in
-            vm.freedBytes == 1_000
+            vm.state == .freedWithinTolerance(freedBytes: 1_000)
         }
 
-        let freed = vm.freedBytes
-        let within = vm.isFreedWithinTolerance
+        let state = vm.state
         let reviews = review.requestCount
-        XCTAssertEqual(freed, 1_000)
-        XCTAssertTrue(within)
+        XCTAssertEqual(state, .freedWithinTolerance(freedBytes: 1_000))
         XCTAssertEqual(reviews, 1)
         vm.handleScenePhase(.background)
     }
@@ -452,29 +562,27 @@ final class DeletionResultViewModelTests: XCTestCase {
         vm.handleScenePhase(.active)
         await TestWait.until { sleeper.isWaiting }
 
-        let freed = vm.freedBytes
+        let state = vm.state
         let reads = space.readCount
-        XCTAssertEqual(freed, 1_000)
+        XCTAssertEqual(state, .freedOutsideTolerance(freedBytes: 1_000, expectedBytes: 500))
         XCTAssertEqual(reads, 2)
 
         vm.handleScenePhase(.inactive)
         await TestWait.until { !sleeper.isWaiting }
         await Task.yield()
 
-        let freedAfterCancel = vm.freedBytes
+        let stateAfterCancel = vm.state
         let readsAfterCancel = space.readCount
         let reviewsAfterCancel = review.requestCount
-        XCTAssertEqual(freedAfterCancel, 1_000)
+        XCTAssertEqual(stateAfterCancel, .freedOutsideTolerance(freedBytes: 1_000, expectedBytes: 500))
         XCTAssertEqual(readsAfterCancel, 2)
         XCTAssertEqual(reviewsAfterCancel, 0)
 
         vm.handleScenePhase(.active)
-        let freedOnReturn = vm.freedBytes
-        let within = vm.isFreedWithinTolerance
+        let stateOnReturn = vm.state
         let reviews = review.requestCount
         let readsOnReturn = space.readCount
-        XCTAssertEqual(freedOnReturn, 500)
-        XCTAssertTrue(within)
+        XCTAssertEqual(stateOnReturn, .freedWithinTolerance(freedBytes: 500))
         XCTAssertEqual(reviews, 1)
         XCTAssertEqual(readsOnReturn, 3)
         vm.handleScenePhase(.background)
@@ -567,17 +675,17 @@ final class HomeViewModelDeletionResultTests: XCTestCase {
             await MainActor.run { vm.deletionResultModel != nil && !vm.isScanningVideos && !vm.isDeleting }
         }
 
-        let values = try await MainActor.run { () -> (Int64, Int, Int, Int, Bool) in
+        let values = try await MainActor.run { () -> (Int64, Int, Int, Int, FreedSpaceResultState) in
             let presented = try XCTUnwrap(vm.deletionResultModel)
             return (Int64(presented.pendingReleaseBytes), presented.snapshot.copiedCount,
                     presented.snapshot.verifiedMatchCount, presented.snapshot.verifiedTotalCount,
-                    presented.showsFreedSpace)
+                    presented.state)
         }
         XCTAssertEqual(values.0, 350)
         XCTAssertEqual(values.1, 2)
         XCTAssertEqual(values.2, 2)
         XCTAssertEqual(values.3, 2)
-        XCTAssertFalse(values.4)
+        XCTAssertEqual(values.4, .pendingRelease(expectedBytes: 350))
         let alert = await MainActor.run { vm.alertMessage }
         XCTAssertNil(alert)
     }

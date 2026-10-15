@@ -17,9 +17,7 @@ struct DeletionResultView: View {
                         openPhotosButton
                         footnote
                         Spacer(minLength: 12)
-                        if let freedBytes = model.freedBytes {
-                            freedCard(freedBytes)
-                        }
+                        returnStatus
                     }
                     .padding(.horizontal, 18)
                     .padding(.top, 4)
@@ -122,21 +120,35 @@ struct DeletionResultView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func freedCard(_ bytes: Int64) -> some View {
-        let amount = ByteCountText.string(fromBytes: bytes)
-        let title = model.isFreedWithinTolerance
-            ? L10n.tr("Back · Freed %@ ✓", amount)
-            : L10n.tr("Back · Freed %@", amount)
-        return Text(verbatim: title)
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(ResultPalette.ok)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(ResultPalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(ResultPalette.freedBorder, lineWidth: 1)
-            )
+    @ViewBuilder
+    private var returnStatus: some View {
+        switch model.state {
+        case .pendingRelease:
+            EmptyView()
+        case .freedWithinTolerance:
+            if let text = model.state.freedStatusText {
+                Text(verbatim: text)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(ResultPalette.ok)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(ResultPalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(ResultPalette.freedBorder, lineWidth: 1)
+                    )
+            }
+        case .freedOutsideTolerance:
+            if let text = model.state.freedStatusText {
+                Text(verbatim: text)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(ResultPalette.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .background(ResultPalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        }
     }
 
     private func checkRow(_ text: String) -> some View {

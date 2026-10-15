@@ -40,11 +40,21 @@ jobs:
           xcrun simctl list devices | grep "$UDID"
 
       - name: Test (Debug)
+        env:
+          TEST_RUNNER_CLIPDOCK_SCREENSHOT_DIR: ${{ github.workspace }}/screenshots
         run: |
           set -o pipefail
           xcodebuild test -project ClipDock.xcodeproj -scheme ClipDock -configuration Debug \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath TestResults.xcresult CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ github.run_id }}
+          path: screenshots
+          if-no-files-found: warn
 
       - name: Release build (simulator, unsigned)
         run: |

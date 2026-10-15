@@ -38,8 +38,8 @@ final class DeletionResultViewModel: ObservableObject {
 
     let snapshot: DeletionResultSnapshot
 
-    /// Positive free-space delta since Photos was opened. Nil hides the freed-space line.
-    @Published private(set) var freedBytes: Int64?
+    /// Pending until a positive free-space drop is measured, then within or outside ±5%.
+    @Published private(set) var state: FreedSpaceResultState
 
     private let freeSpaceMonitor: DeviceFreeSpaceMeasuring
     private let reviewRequester: ReviewRequesting
@@ -65,6 +65,7 @@ final class DeletionResultViewModel: ObservableObject {
         }
     ) {
         self.snapshot = snapshot
+        self.state = .pendingRelease(expectedBytes: snapshot.pendingReleaseBytes)
         self.freeSpaceMonitor = freeSpaceMonitor
         self.reviewRequester = reviewRequester
         self.photosOpener = photosOpener
@@ -83,16 +84,6 @@ final class DeletionResultViewModel: ObservableObject {
             reviewRequester: StoreReviewRequester(),
             photosOpener: PhotosAppOpener()
         )
-    }
-
-    var showsFreedSpace: Bool {
-        freedBytes != nil
-    }
-
-    /// Shown freed space is within ±5% of the bytes moved to Recently Deleted.
-    var isFreedWithinTolerance: Bool {
-        guard let freedBytes else { return false }
-        return FreedSpaceTolerance.withinTolerance(freed: freedBytes, expected: pendingReleaseBytes)
     }
 
     var pendingReleaseBytes: Int64 {
@@ -153,15 +144,25 @@ final class DeletionResultViewModel: ObservableObject {
     private func evaluateReturn() {
         guard let before = baselineFreeBytes else { return }
         guard let after = freeSpaceMonitor.availableCapacityBytes() else { return }
-        guard let freed = FreedSpaceDelta.freedBytes(before: before, after: after) else { return }
-        freedBytes = freed
+        guard let measured = FreedSpaceDelta.freedBytes(before: before, after: after) else { return }
+        let next = FreedSpaceResultState.resolve(
+            expectedBytes: pendingReleaseBytes,
+            measuredFreedBytes: measured
+        )
+        let enteredWithinTolerance = isWithinTolerance(next) && !isWithinTolerance(state)
+        state = next
         guard ReviewPromptPolicy.shouldRequestReview(
-            withinTolerance: isFreedWithinTolerance,
+            withinTolerance: enteredWithinTolerance,
             alreadyRequested: didRequestReview
         ) else {
             return
         }
         didRequestReview = true
         reviewRequester.requestReview()
+    }
+
+    private func isWithinTolerance(_ value: FreedSpaceResultState) -> Bool {
+        if case .freedWithinTolerance = value { return true }
+        return false
     }
 }

@@ -93,6 +93,50 @@ enum FreedSpaceTolerance {
     }
 }
 
+/// Result-page reading of measured free space against the bytes moved to Recently Deleted.
+enum FreedSpaceResultState: Equatable {
+    /// No positive system-storage drop yet. `expectedBytes` is the deletable total.
+    case pendingRelease(expectedBytes: Int64)
+    case freedWithinTolerance(freedBytes: Int64)
+    case freedOutsideTolerance(freedBytes: Int64, expectedBytes: Int64)
+
+    /// Nil, zero, and negative measurements stay pending.
+    /// A positive measurement reuses `FreedSpaceTolerance.withinTolerance` (false when `expectedBytes <= 0`).
+    static func resolve(
+        expectedBytes: Int64,
+        measuredFreedBytes: Int64?,
+        tolerance: Double = 0.05
+    ) -> FreedSpaceResultState {
+        guard let measuredFreedBytes, measuredFreedBytes > 0 else {
+            return .pendingRelease(expectedBytes: expectedBytes)
+        }
+        if FreedSpaceTolerance.withinTolerance(
+            freed: measuredFreedBytes,
+            expected: expectedBytes,
+            tolerance: tolerance
+        ) {
+            return .freedWithinTolerance(freedBytes: measuredFreedBytes)
+        }
+        return .freedOutsideTolerance(freedBytes: measuredFreedBytes, expectedBytes: expectedBytes)
+    }
+
+    /// Line under the pending card. Nil until a positive measurement. Only the within-tolerance line includes ✓.
+    var freedStatusText: String? {
+        switch self {
+        case .pendingRelease:
+            return nil
+        case .freedWithinTolerance(let freedBytes):
+            return L10n.tr("Back · Freed %@ ✓", ByteCountText.string(fromBytes: freedBytes))
+        case .freedOutsideTolerance(let freedBytes, let expectedBytes):
+            return L10n.tr(
+                "Freed %@ (est. %@)",
+                ByteCountText.string(fromBytes: freedBytes),
+                ByteCountText.string(fromBytes: expectedBytes)
+            )
+        }
+    }
+}
+
 enum ReviewPromptPolicy {
     /// Ask once per result, and only when the measured free-space delta is within tolerance.
     static func shouldRequestReview(withinTolerance: Bool, alreadyRequested: Bool) -> Bool {

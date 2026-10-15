@@ -177,7 +177,6 @@
 "Last Migration" = "Last Migration";
 "%d videos" = "%d videos";
 "%d size mismatch(es)" = "%d size mismatch(es)";
-"History ›" = "History ›";
 "Selected %d" = "Selected %d";
 " · %@" = " · %@";
 "Copy to Drive" = "Copy to Drive";
@@ -203,4 +202,5 @@
 "Open Photos" = "Open Photos";
 "After emptying, return here to see the space actually freed (±5%)." = "After emptying, return here to see the space actually freed (±5%).";
 "Back · Freed %@ ✓" = "Back · Freed %@ ✓";
-"Back · Freed %@" = "Back · Freed %@";
+"Freed %@ (est. %@)" = "Freed %@ (est. %@)";
+"History ›" = "History ›";

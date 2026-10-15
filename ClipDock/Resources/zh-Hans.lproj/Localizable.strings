@@ -177,7 +177,6 @@
 "Last Migration" = "上次迁移";
 "%d videos" = "%d 个";
 "%d size mismatch(es)" = "%d 个大小不一致";
-"History ›" = "历史 ›";
 "Selected %d" = "已选 %d 个";
 " · %@" = " · %@";
 "Copy to Drive" = "拷到 U 盘";
@@ -203,4 +202,5 @@
 "Open Photos" = "打开「照片」";
 "After emptying, return here to see the space actually freed (±5%)." = "清空后回到这里，会显示实际腾出的空间（误差 ±5%）";
 "Back · Freed %@ ✓" = "回来后 · 已腾出 %@ ✓";
-"Back · Freed %@" = "回来后 · 已腾出 %@";
+"Freed %@ (est. %@)" = "已腾出 %@（预估 %@）";
+"History ›" = "历史 ›";
