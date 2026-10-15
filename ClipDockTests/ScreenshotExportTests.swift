@@ -59,7 +59,10 @@ final class ScreenshotExportTests: XCTestCase {
     private func exportPicker(to directory: URL) throws {
         let viewModel = makeHomeViewModel()
         viewModel.loadInitialDataIfNeeded()
+        // Let the initial scan + size prefetch finish first; a scan started later clears the selection.
+        spinUntil(timeout: 5) { viewModel.hasCompletedScan && !viewModel.isFetchingAllVideoSizes }
         viewModel.selectLargestVideos(count: HomeLibrarySummary.defaultTopN)
+        spinUntil(timeout: 5) { !viewModel.selectedVideoIDs.isEmpty }
         try render(
             HomeView(viewModel: viewModel, initiallyShowingPicker: true),
             name: "02-picker.png",
@@ -164,6 +167,13 @@ final class ScreenshotExportTests: XCTestCase {
             return active
         }
         return scenes.first
+    }
+
+    private func spinUntil(timeout: TimeInterval, _ condition: () -> Bool) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
     }
 
     private func makeHomeViewModel() -> HomeViewModel {
