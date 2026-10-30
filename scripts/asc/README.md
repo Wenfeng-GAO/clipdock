@@ -324,4 +324,7 @@ python3 -m unittest discover -s scripts/asc -p 'test_*.py' -v
 - **只用标准库**：不引入 `cryptography` / `PyJWT`，签名交给系统 `openssl`，所以任何有 openssl 的机器都能跑。
 - **可复用**：app id 可覆盖，版本号 / build 号 / locale 目录 / release notes 全部参数化，没有写死的 ClipDock id。
 - **保守**：只有两条确定安全的属性会被自动写，且仅在当前值为 null 时；其余一律只报告不动手。
-- **不碰代码**：本目录只加脚本、测试和文档，不改 Swift、`project.yml`、`.github/workflows/`。
+- **不碰产品代码**：本目录只加脚本、测试和文档，不改 Swift，也不改 `project.yml`。
+  唯一的例外是 `.github/workflows/ios-ci.yml` 里新增了一个独立的 `asc-scripts-test` job
+  （ubuntu、只跑这 79 个纯函数测试），这样本工具的测试在 PR 上真的会被执行——
+  原来的 CI 只有 macOS 的 iOS 构建，跑不到这里。
