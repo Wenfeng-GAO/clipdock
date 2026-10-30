@@ -100,6 +100,8 @@ Paste something like this in "Review Notes":
 
 ## 7. Screenshots (plan)
 
+> Screenshot upload, release notes and submit-for-review are scripted: see [scripts/asc/README.md](../../scripts/asc/README.md).
+
 For the first submission, prepare screenshots for required iPhone sizes.
 
 Recommended set:

@@ -27,3 +27,7 @@ docs/screenshots/
 
 # App Store screenshots (local export)
 docs/app-store/screenshots/
+
+# Python
+__pycache__/
+*.pyc

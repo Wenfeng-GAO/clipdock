@@ -69,3 +69,25 @@ jobs:
           name: TestResults-${{ github.run_id }}
           path: TestResults.xcresult
           if-no-files-found: warn
+
+  asc-scripts-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Toolchain sanity
+        run: |
+          set -euo pipefail
+          python3 --version
+          openssl version
+
+      - name: ASC release tool tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts/asc -p 'test_*.py' -v
