@@ -106,25 +106,8 @@ private struct VideoPickerThumbnailCell: View {
                 .overlay {
                     thumbnail
                 }
-                .overlay(alignment: .bottomLeading) {
-                    Text(verbatim: leadingText)
-                        .font(.system(size: 10))
-                        .foregroundStyle(PickerPalette.duration)
-                        .lineLimit(1)
-                        .shadow(color: .black.opacity(0.55), radius: 1, y: 0)
-                        .padding(4)
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    Text(verbatim: sizeText)
-                        .font(.system(size: 11, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(PickerPalette.ink)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
-                        .padding(4)
+                .overlay(alignment: .bottom) {
+                    VideoPickerThumbnailInfo(leadingText: leadingText, sizeText: sizeText)
                 }
                 .overlay(alignment: .topTrailing) {
                     if isSelected {
@@ -173,11 +156,39 @@ private struct VideoPickerThumbnailCell: View {
     }
 }
 
+/// Shared bottom scrim keeps both labels readable over bright poster frames.
+struct VideoPickerThumbnailInfo: View {
+    let leadingText: String
+    let sizeText: String
+
+    var body: some View {
+        LinearGradient(
+            colors: [.clear, .black.opacity(0.55)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 32)
+        .overlay(alignment: .bottom) {
+            HStack(alignment: .bottom, spacing: 4) {
+                Text(verbatim: leadingText)
+                    .font(.system(size: 11, weight: .semibold))
+                Spacer(minLength: 0)
+                Text(verbatim: sizeText)
+                    .font(.system(size: 11, weight: .semibold))
+                    .monospacedDigit()
+            }
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+        }
+    }
+}
+
 private enum PickerPalette {
     static let thumbnailTop = Color(red: 42 / 255, green: 51 / 255, blue: 64 / 255)
     static let thumbnailBottom = Color(red: 26 / 255, green: 32 / 255, blue: 41 / 255)
     static let ink = Color(red: 242 / 255, green: 244 / 255, blue: 247 / 255)
-    static let duration = Color(red: 207 / 255, green: 212 / 255, blue: 220 / 255)
     static let muted = Color(red: 139 / 255, green: 147 / 255, blue: 161 / 255)
 }
 
