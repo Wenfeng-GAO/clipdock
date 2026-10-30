@@ -10,8 +10,11 @@ Linux box with nothing but Python 3.9+.
 """
 
 import base64
+import contextlib
 import hashlib
+import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -48,7 +51,9 @@ JWT_ISSUED_AT = 1_700_000_000
 # A real 409 from POST /v1/reviewSubmissionItems for ClipDock 1.1 on
 # 2026-10-30, i.e. exactly what the empty-submit probe reads. The 1.1 submit was
 # rejected with only "STATE_ERROR.ENTITY_STATE_INVALID ... check associated
-# errors to see why"; meta.associatedErrors carried the three real blockers:
+# errors to see why"; the real list lived one level deeper, on the FIRST error
+# object at errors[0].meta.associatedErrors, keyed by resource path. It carried
+# the three real blockers:
 #   1. builds.usesNonExemptEncryption was null
 #   2. ageRatingDeclarations.socialMedia was null
 #   3. the newly uploaded screenshots were still in post-processing
@@ -65,57 +70,67 @@ PROBE_409_PAYLOAD = {
                 "in valid state. This resource cannot be reviewed, please check associated "
                 "errors to see why."
             ),
+            "meta": {
+                "associatedErrors": {
+                    "/v1/builds/b246d0d7-ee9e-4848-91da-9534fe806730": [
+                        {
+                            "id": "b2c3d4e5-2222-4222-8222-222222222222",
+                            "status": "409",
+                            "code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED",
+                            "title": "The provided entity is missing a required attribute",
+                            "detail": (
+                                "You must provide a value for the attribute "
+                                "'usesNonExemptEncryption' with this request"
+                            ),
+                            "source": {
+                                "pointer": "/data/attributes/usesNonExemptEncryption",
+                                "parameter": "usesNonExemptEncryption",
+                            },
+                        }
+                    ],
+                    "/v1/appStoreVersions/dd00956e-a029-4007-ac6b-3ad1cced1b01/ageRatingDeclaration": [
+                        {
+                            "id": "c3d4e5f6-3333-4333-8333-333333333333",
+                            "status": "409",
+                            "code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED",
+                            "title": "The provided entity is missing a required attribute",
+                            "detail": (
+                                "You must provide a value for the attribute 'socialMedia' with "
+                                "this request"
+                            ),
+                            "source": {
+                                "pointer": "/data/attributes/socialMedia",
+                                "parameter": "socialMedia",
+                            },
+                        }
+                    ],
+                    "/v1/appScreenshots/eac00019-2e0f-89e3-801f-38d34bf80e58": [
+                        {
+                            "id": "d4e5f6a7-4444-4444-8444-444444444444",
+                            "status": "409",
+                            "code": "STATE_ERROR.ENTITY_STATE_INVALID",
+                            "title": "The request cannot be fulfilled because of the state of another resource.",
+                            "detail": (
+                                "The screenshots are still processing and cannot be reviewed yet. "
+                                "Please wait for the screenshot assets to finish processing."
+                            ),
+                            "source": {"pointer": "/data/attributes/assetDeliveryState"},
+                        }
+                    ],
+                }
+            },
         }
     ],
-    "meta": {
-        "associatedErrors": {
-            "/v1/builds/b246d0d7-ee9e-4848-91da-9534fe806730": [
-                {
-                    "id": "b2c3d4e5-2222-4222-8222-222222222222",
-                    "status": "409",
-                    "code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED",
-                    "title": "The provided entity is missing a required attribute",
-                    "detail": (
-                        "You must provide a value for the attribute "
-                        "'usesNonExemptEncryption' with this request"
-                    ),
-                    "source": {
-                        "pointer": "/data/attributes/usesNonExemptEncryption",
-                        "parameter": "usesNonExemptEncryption",
-                    },
-                }
-            ],
-            "/v1/appStoreVersions/dd00956e-a029-4007-ac6b-3ad1cced1b01/ageRatingDeclaration": [
-                {
-                    "id": "c3d4e5f6-3333-4333-8333-333333333333",
-                    "status": "409",
-                    "code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED",
-                    "title": "The provided entity is missing a required attribute",
-                    "detail": (
-                        "You must provide a value for the attribute 'socialMedia' with "
-                        "this request"
-                    ),
-                    "source": {
-                        "pointer": "/data/attributes/socialMedia",
-                        "parameter": "socialMedia",
-                    },
-                }
-            ],
-            "/v1/appScreenshots/eac00019-2e0f-89e3-801f-38d34bf80e58": [
-                {
-                    "id": "d4e5f6a7-4444-4444-8444-444444444444",
-                    "status": "409",
-                    "code": "STATE_ERROR.ENTITY_STATE_INVALID",
-                    "title": "The request cannot be fulfilled because of the state of another resource.",
-                    "detail": (
-                        "The screenshots are still processing and cannot be reviewed yet. "
-                        "Please wait for the screenshot assets to finish processing."
-                    ),
-                    "source": {"pointer": "/data/attributes/assetDeliveryState"},
-                }
-            ],
-        }
-    },
+}
+
+# The same response in the older wrapping: the associatedErrors map sits at
+# the body top level (body.meta) instead of on the first error. Both must
+# keep expanding to the same three errors.
+PROBE_409_PAYLOAD_BODY_META = {
+    "errors": [
+        {key: value for key, value in PROBE_409_PAYLOAD["errors"][0].items() if key != "meta"}
+    ],
+    "meta": {"associatedErrors": PROBE_409_PAYLOAD["errors"][0]["meta"]["associatedErrors"]},
 }
 
 # The two attribute names the probe must be able to auto-fix.
@@ -444,6 +459,91 @@ class AssociatedErrorTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0].code, "X")
 
+    def test_body_meta_shape_still_flattens_all_three(self):
+        # Older payloads carry the map at the body top level; it must keep
+        # expanding exactly like the errors[0].meta shape.
+        errors = asc.flatten_associated_errors(PROBE_409_PAYLOAD_BODY_META)
+        self.assertEqual(len(errors), 3)
+        self.assertEqual(
+            {asc.fix_target(error) for error in errors if asc.fix_target(error)},
+            EXPECTED_FIXABLE,
+        )
+        self.assertEqual(len([error for error in errors if asc.is_waitable_error(error)]), 1)
+
+    def test_first_error_meta_wins_over_body_meta(self):
+        # When both wrappings are present the errors[i].meta level is used.
+        payload = {
+            "errors": [
+                {
+                    "code": "STATE_ERROR.ENTITY_STATE_INVALID",
+                    "meta": {"associatedErrors": {"builds": [{"code": "INNER", "detail": "d"}]}},
+                }
+            ],
+            "meta": {"associatedErrors": {"builds": [{"code": "OUTER", "detail": "d"}]}},
+        }
+        errors = asc.flatten_associated_errors(payload)
+        self.assertEqual([error.code for error in errors], ["INNER"])
+
+    def test_nested_entries_may_be_bare_code_and_detail(self):
+        # Real responses sometimes carry only {code, detail} per entry; the
+        # resource-path key must still reach AssociatedError.resource.
+        payload = {
+            "errors": [
+                {
+                    "status": "409",
+                    "code": "STATE_ERROR.ENTITY_STATE_INVALID",
+                    "detail": "... check associated errors to see why",
+                    "meta": {
+                        "associatedErrors": {
+                            "/v1/builds/b1": [
+                                {
+                                    "code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED",
+                                    "detail": "You must provide a value for the attribute 'usesNonExemptEncryption'",
+                                }
+                            ],
+                            "/v1/ageRatingDeclarations/a1": [
+                                {
+                                    "code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED",
+                                    "detail": "You must provide a value for the attribute 'socialMedia'",
+                                }
+                            ],
+                            "/v1/appScreenshots/s1": [
+                                {
+                                    "code": "STATE_ERROR.ENTITY_STATE_INVALID",
+                                    "detail": "The screenshots are still processing",
+                                }
+                            ],
+                        }
+                    },
+                }
+            ]
+        }
+        errors = asc.flatten_associated_errors(payload)
+        self.assertEqual(len(errors), 3)
+        resources = " ".join(error.resource for error in errors)
+        self.assertIn("/v1/builds/b1", resources)
+        self.assertIn("/v1/ageRatingDeclarations/a1", resources)
+        self.assertIn("/v1/appScreenshots/s1", resources)
+        self.assertEqual(
+            {asc.fix_target(error) for error in errors if asc.fix_target(error)},
+            EXPECTED_FIXABLE,
+        )
+        self.assertEqual(len([error for error in errors if asc.is_waitable_error(error)]), 1)
+
+    def test_per_error_meta_associated_errors_may_be_a_list(self):
+        payload = {
+            "errors": [
+                {
+                    "code": "STATE_ERROR.ENTITY_STATE_INVALID",
+                    "meta": {"associatedErrors": [{"code": "X.ONE", "detail": "first"}]},
+                },
+                {"code": "STATE_ERROR.ENTITY_STATE_INVALID"},
+            ]
+        }
+        errors = asc.flatten_associated_errors(payload)
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].code, "X.ONE")
+
     def test_top_level_errors_only_payload_still_flattens(self):
         payload = {"errors": [{"code": "STATE_ERROR.ENTITY_STATE_INVALID", "detail": "d"}]}
         errors = asc.flatten_associated_errors(payload)
@@ -671,6 +771,239 @@ class ScreenshotPlanningTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Scripted-client behaviour tests (no network, no credentials)
+# ---------------------------------------------------------------------------
+FAKE_VERSION = {
+    "type": "appStoreVersions",
+    "id": "v11",
+    "attributes": {
+        "versionString": "1.1",
+        "platform": "IOS",
+        "appStoreState": "PREPARE_FOR_SUBMISSION",
+        "appVersionState": "PREPARE_FOR_SUBMISSION",
+        "releaseType": "MANUAL",
+    },
+}
+
+FAKE_BUILD_12 = {
+    "type": "builds",
+    "id": "b12",
+    "attributes": {
+        "version": "12",
+        "processingState": "VALID",
+        "uploadedDate": "2026-10-30T00:45:55Z",
+        "expired": False,
+    },
+}
+
+FAKE_SUBMISSION = {
+    "type": "reviewSubmissions",
+    "id": "rs-1",
+    "attributes": {"state": "READY_FOR_REVIEW", "submitted": False},
+}
+
+
+class FakeAscClient(asc.AscClient):
+    """AscClient whose HTTP layer is a script: {(METHOD, path): (status, payload)}.
+    Paths match without their query string; anything unrouted fails the test."""
+
+    def __init__(self, routes):
+        super().__init__(None, app_id="6759184867")
+        self.routes = routes
+
+    def request(self, method, path, body=None, expect=(200, 201, 204), allow_status=()):
+        self.calls.append((method, path))
+        key = (method, path.split("?")[0])
+        if key not in self.routes:
+            raise AssertionError("unexpected %s %s" % (method, path))
+        status, payload = self.routes[key]
+        if status in allow_status:
+            return status, payload
+        if status not in expect:
+            raise asc.AscApiError(method, path, status, payload)
+        return status, payload
+
+
+def _call_paths(client):
+    return [(method, path.split("?")[0]) for method, path in client.calls]
+
+
+# ---------------------------------------------------------------------------
+# F-2: age rating declaration lives on the appInfo since API 4.3
+# ---------------------------------------------------------------------------
+class AgeRatingViaAppInfoTests(unittest.TestCase):
+    def test_pick_app_info_prefers_the_matching_app_store_version(self):
+        version = {"id": "v11"}
+        other = {"id": "ai-1", "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": "v102"}}}}
+        matching = {"id": "ai-2", "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": "v11"}}}}
+        self.assertEqual(asc.pick_app_info([other, matching], version)["id"], "ai-2")
+
+    def test_pick_app_info_falls_back_to_the_single_app_info(self):
+        single = {"id": "ai-1", "attributes": {"state": "PREPARE_FOR_SUBMISSION"}}
+        self.assertEqual(asc.pick_app_info([single], {"id": "v11"})["id"], "ai-1")
+
+    def test_pick_app_info_with_several_unrelated_is_none(self):
+        infos = [{"id": "ai-%d" % index} for index in range(2)]
+        self.assertIsNone(asc.pick_app_info(infos, {"id": "v11"}))
+        self.assertIsNone(asc.pick_app_info([], {"id": "v11"}))
+
+    def test_declaration_is_read_through_the_app_info_path(self):
+        client = FakeAscClient(
+            {
+                ("GET", "/v1/apps/6759184867/appInfos"): (
+                    200,
+                    {
+                        "data": [
+                            {
+                                "type": "appInfos",
+                                "id": "ai-1",
+                                "attributes": {"state": "PREPARE_FOR_SUBMISSION"},
+                                "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": "v11"}}},
+                            }
+                        ]
+                    },
+                ),
+                ("GET", "/v1/appInfos/ai-1/ageRatingDeclaration"): (
+                    200,
+                    {"data": {"type": "ageRatingDeclarations", "id": "ard-1", "attributes": {"socialMedia": None}}},
+                ),
+            }
+        )
+        declaration = asc.fetch_age_rating_declaration(client, {"id": "v11"})
+        self.assertIsNotNone(declaration)
+        paths = [path for _method, path in _call_paths(client)]
+        self.assertIn("/v1/apps/6759184867/appInfos", paths)
+        self.assertIn("/v1/appInfos/ai-1/ageRatingDeclaration", paths)
+        self.assertFalse(
+            any(path.endswith("/appStoreVersions/v11/ageRatingDeclaration") for path in paths),
+            "the removed per-version endpoint must stay out of the request sequence",
+        )
+
+    def test_no_app_infos_prints_an_explicit_reason(self):
+        client = FakeAscClient({("GET", "/v1/apps/6759184867/appInfos"): (200, {"data": []})})
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            declaration = asc.fetch_age_rating_declaration(client, {"id": "v11"})
+        self.assertIsNone(declaration)
+        self.assertIn("appInfos", buffer.getvalue())
+        self.assertIn("unresolved", buffer.getvalue())
+
+
+# ---------------------------------------------------------------------------
+# F-3: a clean (201) probe deletes the item it just created
+# ---------------------------------------------------------------------------
+class ProbeCleanupTests(unittest.TestCase):
+    def test_clean_probe_deletes_the_item_before_returning(self):
+        client = FakeAscClient(
+            {
+                ("POST", "/v1/reviewSubmissionItems"): (
+                    201,
+                    {"data": {"type": "reviewSubmissionItems", "id": "rsi-9"}},
+                ),
+                ("DELETE", "/v1/reviewSubmissionItems/rsi-9"): (204, {}),
+            }
+        )
+        result = asc.probe_submission_errors(client, "v11", "rs-1")
+        self.assertTrue(result.clean)
+        self.assertEqual(
+            _call_paths(client),
+            [("POST", "/v1/reviewSubmissionItems"), ("DELETE", "/v1/reviewSubmissionItems/rsi-9")],
+        )
+
+    def test_409_probe_creates_nothing_so_nothing_is_deleted(self):
+        client = FakeAscClient(
+            {("POST", "/v1/reviewSubmissionItems"): (409, PROBE_409_PAYLOAD)}
+        )
+        result = asc.probe_submission_errors(client, "v11", "rs-1")
+        self.assertFalse(result.clean)
+        self.assertEqual(len(result.errors), 3)
+        self.assertEqual(_call_paths(client), [("POST", "/v1/reviewSubmissionItems")])
+
+
+# ---------------------------------------------------------------------------
+# F-4 + F-6: submit flow -- item attached before submitting, build required
+# ---------------------------------------------------------------------------
+class SubmitFlowTests(unittest.TestCase):
+    def _routes(self, overrides=None):
+        routes = {
+            ("GET", "/v1/apps/6759184867/appStoreVersions"): (200, {"data": [FAKE_VERSION]}),
+            ("GET", "/v1/builds"): (200, {"data": [FAKE_BUILD_12]}),
+            ("GET", "/v1/appStoreVersions/v11/build"): (
+                200,
+                {"data": {"type": "builds", "id": "b12", "attributes": {"processingState": "VALID"}}},
+            ),
+            ("GET", "/v1/reviewSubmissions"): (200, {"data": [FAKE_SUBMISSION]}),
+            ("POST", "/v1/reviewSubmissionItems"): (
+                201,
+                {"data": {"type": "reviewSubmissionItems", "id": "rsi-1"}},
+            ),
+            ("DELETE", "/v1/reviewSubmissionItems/rsi-1"): (204, {}),
+            ("PATCH", "/v1/reviewSubmissions/rs-1"): (
+                200,
+                {
+                    "data": {
+                        "type": "reviewSubmissions",
+                        "id": "rs-1",
+                        "attributes": {"state": "WAITING_FOR_REVIEW", "submittedDate": "2026-10-31T00:00:00Z"},
+                    }
+                },
+            ),
+        }
+        routes.update(overrides or {})
+        return routes
+
+    def _run_submit(self, client, **overrides):
+        base = dict(skip_preflight=True, dry_run=False)
+        base.update(overrides)
+        args = _args(**base)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = asc.command_submit(client, args)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_skip_preflight_still_attaches_the_item_before_submitting(self):
+        client = FakeAscClient(self._routes())
+        code, out, _err = self._run_submit(client, build="12")
+        self.assertEqual(code, asc.EXIT_OK)
+        self.assertIn("WARNING", out)
+        calls = _call_paths(client)
+        self.assertIn(("POST", "/v1/reviewSubmissionItems"), calls)
+        self.assertNotIn(("DELETE", "/v1/reviewSubmissionItems/rsi-1"), calls, "the submit item must stay")
+        self.assertIn(("PATCH", "/v1/reviewSubmissions/rs-1"), calls)
+        self.assertLess(
+            calls.index(("POST", "/v1/reviewSubmissionItems")),
+            calls.index(("PATCH", "/v1/reviewSubmissions/rs-1")),
+        )
+
+    def test_submit_probes_then_attaches_one_fresh_item_and_submits(self):
+        client = FakeAscClient(self._routes())
+        code, _out, _err = self._run_submit(client, build="12", skip_preflight=False)
+        self.assertEqual(code, asc.EXIT_OK)
+        calls = _call_paths(client)
+        item_posts = [index for index, call in enumerate(calls) if call == ("POST", "/v1/reviewSubmissionItems")]
+        self.assertEqual(len(item_posts), 2, "one probe POST plus one kept attach POST")
+        self.assertEqual(calls.count(("DELETE", "/v1/reviewSubmissionItems/rsi-1")), 1, "only the probe item is deleted")
+        self.assertLess(item_posts[-1], calls.index(("PATCH", "/v1/reviewSubmissions/rs-1")))
+
+    def test_submit_without_build_reuses_the_attached_one(self):
+        client = FakeAscClient(self._routes())
+        code, out, _err = self._run_submit(client, build=None)
+        self.assertEqual(code, asc.EXIT_OK)
+        self.assertIn(("GET", "/v1/appStoreVersions/v11/build"), _call_paths(client))
+        self.assertIn("b12", out)
+        self.assertIn("already attached", out)
+
+    def test_submit_without_build_and_none_attached_is_a_usage_error(self):
+        client = FakeAscClient(
+            self._routes({("GET", "/v1/appStoreVersions/v11/build"): (200, {"data": None})})
+        )
+        code, _out, err = self._run_submit(client, build=None)
+        self.assertEqual(code, asc.EXIT_USAGE)
+        self.assertIn("--build", err)
+        self.assertNotIn(("PATCH", "/v1/reviewSubmissions/rs-1"), _call_paths(client))
+
+
+# ---------------------------------------------------------------------------
 # CLI surface
 # ---------------------------------------------------------------------------
 class CliTests(unittest.TestCase):
@@ -699,13 +1032,13 @@ class CliTests(unittest.TestCase):
         self.assertEqual(overridden.app_id, "1234567890")
 
     def test_no_subcommand_prints_help_and_exits_usage(self):
-        self.assertEqual(asc.main([]), asc.EXIT_USAGE)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = asc.main([])
+        self.assertEqual(code, asc.EXIT_USAGE)
+        self.assertIn("usage", buffer.getvalue().lower())
 
     def test_preflight_without_a_key_exits_usage_with_a_clear_message(self):
-        import contextlib
-        import io
-        import os
-
         saved = {k: os.environ.pop(k, None) for k in ("ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_KEY_PATH")}
         try:
             buffer = io.StringIO()
@@ -741,8 +1074,8 @@ class CliTests(unittest.TestCase):
             saved = {name: os.environ.get(name) for name in env}
             os.environ.update(env)
             try:
-                buffer = io.StringIO()
-                with contextlib.redirect_stderr(buffer):
+                err_buffer = io.StringIO()
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err_buffer):
                     code = asc.main(["submit", "--dry-run"])
             finally:
                 for name, value in saved.items():
@@ -751,7 +1084,7 @@ class CliTests(unittest.TestCase):
                     else:
                         os.environ[name] = value
         self.assertEqual(code, asc.EXIT_USAGE)
-        self.assertIn("--version", buffer.getvalue())
+        self.assertIn("--version", err_buffer.getvalue())
 
 
 def _args(**overrides):

@@ -41,14 +41,21 @@
 ```
 
 真正的清单在 **`meta.associatedErrors`** 里，而只有在 POST `reviewSubmissionItems` 失败时才会带出来。
+Apple 把它挂在**第一个 error 对象**上（`errors[0].meta.associatedErrors`，按资源路径分组）；
+旧一点的响应把它放在 body 顶层的 `meta` 里，两种形状都会解析。
 所以 `preflight` 会：
 
 1. 建一个一次性 submission（空 submission 无害，ASC 下次还会还给你同一个）；
 2. POST 一个针对目标版本的 `reviewSubmissionItems`，读 409 里的 `meta.associatedErrors`；
+   探针是**无副作用**的：如果 ASC 直接接受（201，说明版本已可提审），会立刻 DELETE 掉
+   刚创建的 item 再返回，不在 App Store Connect 留下任何多余 item；
 3. 把**每一条** associated error 用人话打出来；
 4. `--fix` 时自动修那两条确定安全的：
    - `builds.usesNonExemptEncryption = false`
    - `ageRatingDeclarations.socialMedia = false`
+     （经 `GET /v1/apps/{appId}/appInfos` 解析出 appInfoId，再读写
+     `GET/PATCH /v1/appInfos/{appInfoId}/ageRatingDeclaration`；Apple 在 API 4.3 移除了旧的
+     `GET /v1/appStoreVersions/{id}/ageRatingDeclaration`，本工具不再请求那个端点）
    **且仅当当前值是 null** 时才写；
 5. 等截图 asset 变成 `COMPLETE`；
 6. 重新探针，直到干净；只要还有一条没解决就**拒绝提交**并以非 0 退出。
@@ -113,6 +120,10 @@ python3 scripts/asc/asc_release.py preflight --version 1.1 --fix
 
 退出码：`0` 干净；`3` 仍有未解决的 associated error；`2` 参数/凭据问题；`4` 接口异常。
 
+探针是无副作用的：ASC 直接接受 item（201，即版本已可提审）时，`preflight` 会立刻
+`DELETE /v1/reviewSubmissionItems/{id}` 把刚建的 item 收掉，不会把版本锁进
+`Ready for Review`，也不会影响后续改截图。409 时 item 根本没建起来，无需清理。
+
 相关参数：`--max-probes`（默认 3）、`--probe-interval`（默认 10 秒）、
 `--wait-timeout`（等截图处理，默认 900 秒）、`--submission-id`（复用指定 submission）。
 
@@ -140,8 +151,14 @@ python3 scripts/asc/asc_release.py submit --version 1.1 --build 12 \
 ```
 
 - 先挂 build（已挂则跳过），可顺带同步各 locale 的 `whatsNew`。
+  不传 `--build` 时会先 `GET /v1/appStoreVersions/{id}/build` 读版本已挂的 build 并复用
+  （打印用的是哪个）；版本一个 build 都没挂就直接以退出码 2 报错（`submit needs --build`），
+  绝不会在不知道 build 的情况下提交。
+- 真正 PATCH `submitted: true` 之前，会先把目标版本以 reviewSubmissionItem 挂进 submission
+  （探针留下的 item 已删、不能复用；`--skip-preflight` 更是从来没有建过）——ASC 拒绝收一个
+  不含目标版本的 submission。挂 item 被 409 拒绝时，打出 associated errors 并拒绝提交（退出码 3）。
 - **提交前一定跑一次空提交探针；不干净就拒绝提交**（退出码 3）。
-- `--skip-preflight` 存在但强烈不建议，用了会打印警告。
+- `--skip-preflight` 存在但强烈不建议，用了会打印警告（item 仍会照常挂）。
 - 已经处于 `WAITING_FOR_REVIEW` / `IN_REVIEW` 等状态时直接返回成功，不会重复提交。
 
 ### `--dry-run`
@@ -308,14 +325,18 @@ python3 scripts/asc/asc_release.py probe --version 1.1
 python3 -m unittest discover -s scripts/asc -p 'test_*.py' -v
 ```
 
-测试全部是纯函数，不联网、不需要 key，在干净的 Linux 上就能过。覆盖：
+测试全部是纯函数或脚本化假客户端，不联网、不需要 key，在干净的 Linux 上就能过。覆盖：
 
 - DER → 原始 `r||s` 签名（72 字节真实向量，断言两半各 32 字节）；
 - JWT header/payload 的 base64url 正确性（无 padding、无 `+`/`/`）；
 - displayType 选择（只有 `APP_IPHONE_67`、一个都没有、iPad/Watch 混入、`APP_IPHONE_69` 必须被忽略）；
 - MD5 校验和；
 - uploadOperations 多块切片（乱序 offset、缺 length、尾块不足）；
-- 真实 409 里的 associated error 展平（含我们实际撞到的三类）。
+- 真实 409 里的 associated error 展平（`errors[0].meta.associatedErrors` 与旧的 `body.meta`
+  两种包装、裸 `{code, detail}` 条目、per-error list 形状，都展开成实际撞到的三类）；
+- age rating 走 appInfo 新路径解析（API 4.3 之后），旧端点不出现在请求序列里；
+- 探针/提交对 `reviewSubmissionItems` 的请求顺序：干净探针建了就删、提交前一定先挂 item
+  且 item 保留；`submit` 缺 `--build` 时复用已挂 build 或以退出码 2 拒绝。
 
 ---
 
@@ -324,7 +345,10 @@ python3 -m unittest discover -s scripts/asc -p 'test_*.py' -v
 - **只用标准库**：不引入 `cryptography` / `PyJWT`，签名交给系统 `openssl`，所以任何有 openssl 的机器都能跑。
 - **可复用**：app id 可覆盖，版本号 / build 号 / locale 目录 / release notes 全部参数化，没有写死的 ClipDock id。
 - **保守**：只有两条确定安全的属性会被自动写，且仅在当前值为 null 时；其余一律只报告不动手。
+- **探针不留垃圾、提交必有 item**：干净的探针（201）会立刻删掉自己创建的 reviewSubmissionItem；
+  真正提交前再重新挂一个新的 item 并保留——submission 里恰好一个指向目标版本的 item，
+  不会累积，也不会提交一个不含版本的空 submission。
 - **不碰产品代码**：本目录只加脚本、测试和文档，不改 Swift，也不改 `project.yml`。
   唯一的例外是 `.github/workflows/ios-ci.yml` 里新增了一个独立的 `asc-scripts-test` job
-  （ubuntu、只跑这 79 个纯函数测试），这样本工具的测试在 PR 上真的会被执行——
+  （ubuntu、只跑这 94 个测试），这样本工具的测试在 PR 上真的会被执行——
   原来的 CI 只有 macOS 的 iOS 构建，跑不到这里。

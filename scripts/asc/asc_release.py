@@ -8,9 +8,11 @@ probe        Read-only snapshot: app, every appStoreVersion with state, recent
 preflight    The empty-submit error probe. Creates a throwaway review submission,
              POSTs a reviewSubmissionItem for the target version and reads
              ``meta.associatedErrors`` from the 409. That single response lists
-             *every* missing prerequisite. ``--fix`` applies the two known-safe
-             fixes, waits for screenshot assets to finish processing and re-probes
-             until clean. Exits non-zero while anything is unresolved.
+             *every* missing prerequisite. A clean (201) probe deletes the item
+             it just created, so probing leaves nothing behind. ``--fix`` applies
+             the two known-safe fixes, waits for screenshot assets to finish
+             processing and re-probes until clean. Exits non-zero while anything
+             is unresolved.
 screenshots  Replace a version's screenshots per localization, reusing the
              ``screenshotDisplayType`` that already exists in App Store Connect.
 submit       Attach the build and submit the version for review. Refuses to
@@ -388,14 +390,18 @@ def choose_display_type(
 # ---------------------------------------------------------------------------
 # POSTing a reviewSubmissionItem for an incomplete version answers
 #   409 STATE_ERROR.ENTITY_STATE_INVALID
-# whose ``meta.associatedErrors`` holds the real list, keyed by resource path:
+# whose ``meta.associatedErrors`` holds the real list, keyed by resource path.
+# Apple puts it on the first error object, not at the body top level:
 #
-#   {"meta": {"associatedErrors": {
-#        "builds": [{"code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED",
-#                    "detail": "... usesNonExemptEncryption ..."}]}}}
+#   {"errors": [{"status": "409", "code": "STATE_ERROR.ENTITY_STATE_INVALID",
+#                "detail": "... check associated errors to see why",
+#                "meta": {"associatedErrors": {
+#                    "/v1/builds/b1": [{"code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED",
+#                                       "detail": "... usesNonExemptEncryption ..."}]}}}]}
 #
-# That single response names *every* missing prerequisite -- in the 1.1 run:
-# builds.usesNonExemptEncryption, ageRatingDeclarations.socialMedia, and
+# Older payloads carry the same map one level up, at ``body.meta``; both are
+# read.  That single response names *every* missing prerequisite -- in the 1.1
+# run: builds.usesNonExemptEncryption, ageRatingDeclarations.socialMedia, and
 # screenshots still in post-processing.  Without it ASC only says "check
 # associated errors to see why".
 AssociatedError = namedtuple(
@@ -480,19 +486,8 @@ def _error_from_payload(raw: Any, fallback_resource: str = "") -> AssociatedErro
     )
 
 
-def flatten_associated_errors(payload: Any) -> List[AssociatedError]:
-    """Flatten a 409 payload into an ordered list of associated errors.
-
-    Handles all the shapes we have seen or may see:
-      * ``meta.associatedErrors`` as ``{resource_path: [error, ...]}`` (real ASC)
-      * ``meta.associatedErrors`` as a flat list
-      * only a top-level ``errors`` list (no associated detail)
-    """
-    if not isinstance(payload, dict):
-        return []
-    meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
-    associated = meta.get("associatedErrors")
-
+def _flatten_associated_container(associated: Any, fallback_resource: str = "") -> List[AssociatedError]:
+    """One ``associatedErrors`` value: a dict keyed by resource path, or a list."""
     results: List[AssociatedError] = []
     if isinstance(associated, dict):
         for resource, entries in associated.items():
@@ -500,12 +495,39 @@ def flatten_associated_errors(payload: Any) -> List[AssociatedError]:
                 results.append(_error_from_payload(entry, str(resource)))
     elif isinstance(associated, list):
         for entry in associated:
-            results.append(_error_from_payload(entry))
-
-    if not results:
-        for entry in payload.get("errors") or []:
-            results.append(_error_from_payload(entry))
+            results.append(_error_from_payload(entry, fallback_resource))
     return results
+
+
+def flatten_associated_errors(payload: Any) -> List[AssociatedError]:
+    """Flatten a 409 payload into an ordered list of associated errors.
+
+    Looks in this order and keeps the first place that yields anything:
+      1. ``errors[i].meta.associatedErrors`` on each top-level error -- the
+         real ASC shape: a dict keyed by resource path, or a flat list
+      2. ``meta.associatedErrors`` at the body top level (the older shape)
+      3. the top-level ``errors`` list itself, only when neither of the
+         above produced anything (no associated detail available)
+    """
+    if not isinstance(payload, dict):
+        return []
+    top_errors = payload.get("errors") or []
+
+    results: List[AssociatedError] = []
+    for entry in top_errors:
+        if not isinstance(entry, dict):
+            continue
+        meta = entry.get("meta") if isinstance(entry.get("meta"), dict) else {}
+        results.extend(_flatten_associated_container(meta.get("associatedErrors")))
+    if results:
+        return results
+
+    meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+    results = _flatten_associated_container(meta.get("associatedErrors"))
+    if results:
+        return results
+
+    return [_error_from_payload(entry) for entry in top_errors]
 
 
 def error_blob(error: AssociatedError) -> str:
@@ -1188,8 +1210,11 @@ def probe_submission_errors(
 ) -> ProbeResult:
     """POST a reviewSubmissionItem and read meta.associatedErrors from the 409.
 
-    A clean probe means the item was created (status 201); the submission is
-    left untouched apart from that item, which the real submit reuses.
+    A clean probe means the item was created (status 201); the item is
+    deleted again before returning, so probing is side-effect free and never
+    leaves a stray item pointing at the version.  On 409 nothing was created,
+    so there is nothing to delete.  The real submit attaches its own fresh
+    item with ``attach_submission_item``.
     """
     body = {
         "data": {
@@ -1211,6 +1236,16 @@ def probe_submission_errors(
         "POST", "/v1/reviewSubmissionItems", body, allow_status=(201, 409)
     )
     if status == 201:
+        item_id = (payload.get("data") or {}).get("id")
+        if item_id:
+            # The probe must not leave anything behind: a version sitting in
+            # Ready for Review with a stray item stops accepting screenshot
+            # changes, and a second item for the same version breaks submit.
+            client.request(
+                "DELETE",
+                "/v1/reviewSubmissionItems/%s" % item_id,
+                expect=(200, 204),
+            )
         return ProbeResult(True, status, [], submission_id, True, False)
     if status == 409:
         errors = dedupe_errors(flatten_associated_errors(payload))
@@ -1221,6 +1256,45 @@ def probe_submission_errors(
         status,
         payload,
         note="expected 201 (clean) or 409 (prerequisites listed in meta.associatedErrors)",
+    )
+
+
+def attach_submission_item(client: AscClient, version_id: str, submission_id: str) -> List[AssociatedError]:
+    """POST the version item into the submission and KEEP it: ASC refuses to
+    submit a submission that does not contain the target version.
+
+    The probe deletes the item it creates, and ``--skip-preflight`` never
+    creates one, so the real submit must attach a fresh item itself, right
+    before PATCHing ``submitted: true``.  Returns the deduped associated
+    errors when ASC refuses (409) -- the caller must not submit then -- or
+    an empty list when the item is attached (or dry-run printed the attempt).
+    """
+    body = {
+        "data": {
+            "type": "reviewSubmissionItems",
+            "relationships": {
+                "reviewSubmission": {"data": {"type": "reviewSubmissions", "id": submission_id}},
+                "appStoreVersion": {"data": {"type": "appStoreVersions", "id": version_id}},
+            },
+        }
+    }
+    status, payload = client.write(
+        "POST",
+        "/v1/reviewSubmissionItems",
+        body,
+        description="attach the version to the review submission",
+        allow_status=(201, 409),
+    )
+    if status in (0, 201):
+        return []
+    if status == 409:
+        return dedupe_errors(flatten_associated_errors(payload))
+    raise AscApiError(
+        "POST",
+        "/v1/reviewSubmissionItems",
+        status,
+        payload,
+        note="expected 201 (item attached) or 409 (prerequisites listed in meta.associatedErrors)",
     )
 
 
@@ -1236,13 +1310,62 @@ def fetch_build_detail(client: AscClient, build_id: str) -> dict:
     return payload.get("data") or {}
 
 
-def fetch_age_rating_declaration(client: AscClient, version_id: str) -> Optional[dict]:
+def fetch_app_infos(client: AscClient) -> List[dict]:
+    return client.paginate("/v1/apps/%s/appInfos?limit=50" % client.app_id)
+
+
+def pick_app_info(app_infos: Sequence[dict], version: dict) -> Optional[dict]:
+    """The appInfo that owns this version: the one whose appStoreVersion
+    relationship points at it, or the only appInfo when there is just one."""
+    if not app_infos:
+        return None
+    version_id = version.get("id")
+    for info in app_infos:
+        relationships = info.get("relationships") or {}
+        linked = (relationships.get("appStoreVersion") or {}).get("data") or {}
+        if version_id and linked.get("id") == version_id:
+            return info
+    if len(app_infos) == 1:
+        return app_infos[0]
+    return None
+
+
+def fetch_age_rating_declaration(client: AscClient, version: dict) -> Optional[dict]:
+    """Read the version's age rating declaration through its appInfo.
+
+    Apple removed ``GET /v1/appStoreVersions/{id}/ageRatingDeclaration`` in
+    API 4.3; the declaration now hangs off the appInfo:
+    ``GET /v1/apps/{appId}/appInfos`` to resolve the appInfo, then
+    ``GET /v1/appInfos/{appInfoId}/ageRatingDeclaration``.  Prints exactly
+    why it cannot be resolved and returns None in that case.
+    """
     try:
-        payload = client.get("/v1/appStoreVersions/%s/ageRatingDeclaration" % version_id)
+        app_infos = fetch_app_infos(client)
+    except AscApiError as exc:
+        print("  ageRatingDeclaration unresolved: could not list appInfos: %s" % exc)
+        return None
+    if not app_infos:
+        print(
+            "  ageRatingDeclaration unresolved: app %s has no appInfos "
+            "(the per-version endpoint was removed in API 4.3)" % client.app_id
+        )
+        return None
+    app_info = pick_app_info(app_infos, version)
+    if not app_info:
+        print(
+            "  ageRatingDeclaration unresolved: none of the %d appInfos on app %s "
+            "points at version %s" % (len(app_infos), client.app_id, version.get("id"))
+        )
+        return None
+    try:
+        payload = client.get("/v1/appInfos/%s/ageRatingDeclaration" % app_info["id"])
     except AscApiError as exc:
         print("  could not read ageRatingDeclaration: %s" % exc)
         return None
-    return payload.get("data") or None
+    declaration = payload.get("data") or None
+    if not declaration:
+        print("  appInfo %s has no ageRatingDeclaration" % app_info["id"])
+    return declaration
 
 
 def apply_auto_fixes(
@@ -1295,10 +1418,10 @@ def apply_auto_fixes(
             outcomes.append("set usesNonExemptEncryption=false on build %s" % build["id"])
 
         elif name == "socialMedia":
-            declaration = fetch_age_rating_declaration(client, version["id"])
+            declaration = fetch_age_rating_declaration(client, version)
             if not declaration:
                 outcomes.append(
-                    "skip socialMedia: version %s has no ageRatingDeclaration to patch"
+                    "skip socialMedia: no ageRatingDeclaration resolved for version %s"
                     % version.get("id")
                 )
                 continue
@@ -1887,6 +2010,28 @@ def command_submit(client: AscClient, args: argparse.Namespace) -> int:
             )
             return EXIT_ASC_ERROR
         print("  " + attach_build(client, version, build))
+    else:
+        try:
+            attached = (client.get("/v1/appStoreVersions/%s/build" % version["id"]) or {}).get("data")
+        except AscApiError:
+            attached = None
+        if attached:
+            build = attached
+            print(
+                "  build: %s (%s, already attached -- reusing it)"
+                % (
+                    build.get("id"),
+                    (build.get("attributes") or {}).get("processingState") or "state unknown",
+                )
+            )
+        else:
+            print(
+                "ERROR: submit needs --build: version %s has no build attached. "
+                "Upload one (Xcode or altool) and pass --build, or attach it in "
+                "App Store Connect first." % version["id"],
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
 
     if args.whats_new_file:
         whats_new = load_whats_new(args.whats_new_file)
@@ -1919,6 +2064,18 @@ def command_submit(client: AscClient, args: argparse.Namespace) -> int:
         print("  WARNING: --skip-preflight given; submitting without the empty-submit probe.")
         submission = ensure_open_submission(client, args)
         submission_id = submission.get("id")
+
+    item_errors = attach_submission_item(client, version["id"], submission_id)
+    if item_errors:
+        print("  ASC refused the version item (HTTP 409). Associated errors:", file=sys.stderr)
+        print("")
+        print_probe_errors(item_errors)
+        print(
+            "\nREFUSING TO SUBMIT: review submission %s would not contain version %s. "
+            "Fix the errors above and retry." % (submission_id, args.version),
+            file=sys.stderr,
+        )
+        return EXIT_UNRESOLVED
 
     print("\n-- submitting reviewSubmission %s --" % submission_id)
     body = {"data": {"type": "reviewSubmissions", "id": submission_id, "attributes": {"submitted": True}}}
