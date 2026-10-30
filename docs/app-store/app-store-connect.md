@@ -16,8 +16,9 @@ This file is a practical, copy/paste oriented checklist for submitting **ClipDoc
 3. Target devices: iPhone-only (first release).
 4. App pricing: Free.
 5. Release version:
-   - Version: `1.0.1`
-   - Build: increment as needed for each upload (`CFBundleVersion`).
+   - Version: `1.1`
+   - Build: `12` (`CFBundleVersion`).
+   - Submission prep: 1.1 (12) is ready to upload; ASC submit waits for face「提审 1.1」.
 
 ## Submission Record
 
