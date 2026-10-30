@@ -352,3 +352,28 @@ python3 -m unittest discover -s scripts/asc -p 'test_*.py' -v
   唯一的例外是 `.github/workflows/ios-ci.yml` 里新增了一个独立的 `asc-scripts-test` job
   （ubuntu、只跑这 94 个测试），这样本工具的测试在 PR 上真的会被执行——
   原来的 CI 只有 macOS 的 iOS 构建，跑不到这里。
+
+---
+
+## 8. 第一次真跑之前请读这一段
+
+本工具**至今没有对真实的 App Store Connect 跑过一次**。它所有的 409 形状、端点路径和
+修复行为，都来自 Apple 公开文档、两个独立第三方客户端的响应样本，以及 QA 用假 ASC
+逐条构造的对照实验。CI 绿只说明这 94 个测试通过，不说明真 API 一定认。
+
+所以第一次真跑时，请按下面两条做：
+
+**1）把 `preflight` 的完整输出留档。** 真跑之前先跑一次不带 `--fix` 的 `preflight`，
+把 stdout/stderr 原样存下来。如果它打印的 associated error 与你预期的不一致（特别是
+「只展开了一条外层错误」或「一条都没展开」），那就是真实响应形状和我们的假设不同，
+把日志发回来，改 `flatten_associated_errors` 而不是硬试。
+
+**2）多平台 app 的 age rating 会自动跳过。** 自动修 `socialMedia` 需要先
+`GET /v1/apps/{id}/appInfos` 再取对应版本的 appInfo。当一个 app 同时有 iOS 和 macOS
+两个 appInfo 时，工具无法确定版本归属，会安全跳过并打印
+`none of the N appInfos points at version ...`。这不会改错对象，但这一条修复退化成手工：
+需要你在 App Store Connect 里自己把 age rating 的 socialMedia 关掉。ClipDock 目前是
+单平台（iOS），不受影响。
+
+这两条是 QA 在 `e5f7b59` 复测时提出并保留的边界。它们不影响「已验收」的结论，
+但第一次上真环境时值得盯一眼。
