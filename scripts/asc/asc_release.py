@@ -25,7 +25,7 @@ Authentication is an App Store Connect API key (ES256 JWT). Credentials come
 from CLI flags or the environment, never from this file:
 
     ASC_ISSUER_ID   issuer UUID
-    ASC_KEY_ID      key id, e.g. ABC123DEFG
+    ASC_KEY_ID      key id, e.g. <APP_MANAGER_KEY_ID>
     ASC_KEY_PATH    path to AuthKey_<key id>.p8
     ASC_APP_ID      optional app id (defaults to ClipDock)
 
@@ -95,12 +95,12 @@ ACCEPTED_SCREENSHOT_SIZES: Dict[str, Tuple[Tuple[int, int], ...]] = {
     "APP_IPHONE_61": ((1206, 2622), (1179, 2556)),
 }
 
-# Diagnostic hint only -- never used to authenticate.  ClipDock's Sales and
-# Trends key cannot read /v1/builds; the App Manager key can.
+# Diagnostic hint only -- never used to authenticate. A Sales and Trends key
+# cannot read /v1/builds; an App Manager key can. No key id belongs in this text.
 BUILD_ACCESS_403_HINT = (
-    "403 on /v1/builds is almost always the wrong key: ClipDock has two ASC keys.\n"
-    "  AuthKey_YYK7P6W893.p8  -> App Manager role, can read builds and submit for review.\n"
-    "  AuthKey_7XL5564K84.p8  -> Sales and Trends only, CANNOT read /v1/builds.\n"
+    "403 on /v1/builds is almost always the wrong key role.\n"
+    "  App Manager: that key can read /v1/builds and submit for review.\n"
+    "  Sales and Trends: that key CANNOT read /v1/builds.\n"
     "  Point ASC_KEY_ID / ASC_KEY_PATH (or --key-id / --key-path) at the App Manager key."
 )
 
@@ -842,9 +842,8 @@ class AscClient:
             )
         if status == 403:
             return (
-                "403 means this key lacks permission for %s. ClipDock's Sales and Trends key "
-                "(AuthKey_7XL5564K84.p8) cannot read builds or submit; use the App Manager key "
-                "(AuthKey_YYK7P6W893.p8)." % path
+                "403 means this key lacks permission for %s. A Sales and Trends key "
+                "cannot read builds or submit; use the App Manager key." % path
             )
         return ""
 
@@ -2147,8 +2146,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Credentials come from flags or the environment:\n"
             "  ASC_ISSUER_ID, ASC_KEY_ID, ASC_KEY_PATH, ASC_APP_ID\n"
             "Never put the key id, issuer id or key itself in the repository.\n"
-            "The Sales and Trends key (AuthKey_7XL5564K84.p8) cannot read /v1/builds;\n"
-            "use the App Manager key (AuthKey_YYK7P6W893.p8).\n"
+            "The Sales and Trends key cannot read /v1/builds;\n"
+            "use the App Manager key (ASC_KEY_ID / ASC_KEY_PATH, or --key-id / --key-path).\n"
             "Run `probe` first; every mutating subcommand accepts --dry-run."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

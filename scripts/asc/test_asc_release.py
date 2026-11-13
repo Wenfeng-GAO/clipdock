@@ -15,6 +15,8 @@ import hashlib
 import io
 import json
 import os
+import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -1085,6 +1087,78 @@ class CliTests(unittest.TestCase):
                         os.environ[name] = value
         self.assertEqual(code, asc.EXIT_USAGE)
         self.assertIn("--version", err_buffer.getvalue())
+
+
+class HelpIdentifierSanitizationTests(unittest.TestCase):
+    """Help, error hints, and the ASC README carry roles, not live key ids.
+
+    The check is structural: a 10-character App Store Connect key id (letters and
+    digits) or an ``AuthKey_<10>.p8`` filename. The forbidden values are not
+    copied into this file.
+    """
+
+    LIVE_KEY_FILE = re.compile(r"AuthKey_[A-Z0-9]{10}\.p8")
+    LIVE_KEY_ID = re.compile(r"\b(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*[0-9])[A-Z0-9]{10}\b")
+
+    def test_help_error_and_readme_have_no_live_key_id(self):
+        script = Path(__file__).resolve().parent / "asc_release.py"
+        readme = script.parent / "README.md"
+        completed = subprocess.run(
+            [sys.executable, str(script), "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(completed.stderr, "")
+
+        client = asc.AscClient(credentials=None, app_id="app-placeholder", dry_run=True)
+        surfaces = {
+            "help": completed.stdout,
+            "builds-403": client._hint_for("GET", "/v1/builds", 403),
+            "other-403": client._hint_for("GET", "/v1/apps/app-placeholder", 403),
+            "readme": readme.read_text(encoding="utf-8"),
+            "script": script.read_text(encoding="utf-8"),
+        }
+        self.assertEqual(surfaces["builds-403"], asc.BUILD_ACCESS_403_HINT)
+        self.assertIn("/v1/apps/app-placeholder", surfaces["other-403"])
+
+        for name, text in surfaces.items():
+            self.assertIsNone(self.LIVE_KEY_FILE.search(text), name)
+            self.assertIsNone(self.LIVE_KEY_ID.search(text), "%s: %s" % (name, self.LIVE_KEY_ID.findall(text)))
+
+        for name in ("help", "builds-403", "readme", "script"):
+            text = surfaces[name]
+            self.assertIn("App Manager", text, name)
+            self.assertIn("Sales and Trends", text, name)
+            self.assertIn("/v1/builds", text, name)
+
+        help_text = surfaces["help"]
+        for required in ("ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_KEY_PATH", "--key-id", "--key-path"):
+            self.assertIn(required, help_text)
+        self.assertIn("<APP_MANAGER_KEY_ID>", surfaces["readme"])
+        self.assertIn("cannot read builds or submit", surfaces["other-403"])
+
+    def test_credential_loader_still_uses_supplied_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            key = Path(tmp) / "AuthKey_PLACEHOLDER.p8"
+            key.write_text(
+                "-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n-----END PRIVATE KEY-----\n",
+                encoding="utf-8",
+            )
+            credentials = asc.resolve_credentials(
+                None,
+                None,
+                None,
+                env={
+                    "ASC_ISSUER_ID": "issuer-placeholder",
+                    "ASC_KEY_ID": "placeholder-key-id",
+                    "ASC_KEY_PATH": str(key),
+                },
+            )
+        self.assertEqual(credentials.issuer, "issuer-placeholder")
+        self.assertEqual(credentials.key_id, "placeholder-key-id")
+        self.assertEqual(credentials.key_path, key)
 
 
 def _args(**overrides):
