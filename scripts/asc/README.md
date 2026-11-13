@@ -63,16 +63,16 @@ Apple 把它挂在**第一个 error 对象**上（`errors[0].meta.associatedErro
 1.1 那次真实探针就是这三条：`usesNonExemptEncryption`、`socialMedia`、截图还在 post-processing。
 这三条原样保存在测试文件里的 JSON fixture 中。
 
-### 附带一条：Sales key 读不了 builds
+### 附带一条：Sales and Trends key 读不了 builds
 
-ClipDock 有两把 ASC key：
+按 App Store Connect 里的角色区分，仓库不记录具体 key id：
 
-| 文件 | 角色 | 能干什么 |
+| 角色 | 怎么认 | 能干什么 |
 | --- | --- | --- |
-| `AuthKey_YYK7P6W893.p8` | App Manager | 能读 `/v1/builds`、能提审 |
-| `AuthKey_7XL5564K84.p8` | Sales and Trends | **读不了** `/v1/builds` |
+| App Manager | 角色为 App Manager 的那把 key | 能读 `/v1/builds`、能提审 |
+| Sales and Trends | 角色为 Sales and Trends 的那把 key | **读不了** `/v1/builds` |
 
-用错 key 会在 `/v1/builds` 上收到 403。脚本检测到这种情况会直接打印上面这条原因，
+用错 key 会在 `/v1/builds` 上收到 403。脚本检测到这种情况会直接打印角色说明，
 而不是让你自己去猜。key id / issuer id / 私钥一概不写进仓库，只从环境变量或参数读。
 
 ---
@@ -81,8 +81,8 @@ ClipDock 有两把 ASC key：
 
 ```bash
 export ASC_ISSUER_ID="<team issuer uuid>"
-export ASC_KEY_ID="<key id, 例如 YYK7P6W893>"
-export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_<key id>.p8"
+export ASC_KEY_ID="<APP_MANAGER_KEY_ID>"
+export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_<APP_MANAGER_KEY_ID>.p8"
 ```
 
 也可以用参数覆盖：`--issuer` / `--key-id` / `--key-path`。参数优先于环境变量。
@@ -197,8 +197,8 @@ zh-Hans = 优化相册选择器底部遮罩。
 ```bash
 git checkout main && git pull
 export ASC_ISSUER_ID="<issuer>"
-export ASC_KEY_ID="YYK7P6W893"                                   # App Manager key，不是 Sales key
-export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_YYK7P6W893.p8"
+export ASC_KEY_ID="<APP_MANAGER_KEY_ID>"                         # App Manager key，不是 Sales and Trends key
+export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_<APP_MANAGER_KEY_ID>.p8"
 ```
 
 ### 1. 改版本号
